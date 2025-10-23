@@ -1,16 +1,19 @@
-import "./App.css";
+import { BrowserRouter, Routes, Route } from "react-router-dom";
+import Auth from "./auth/pages/AuthPage";
+import "./app.css";
+import CompanyPage from "./pages/company/CompanyPage";
+import HomePage from "./pages/home/HomePage";
 
 function App() {
   return (
-    <>
-      <div className="flex flex-col items-center justify-center h-screen">
-        <h1 className="text-3xl font-bold underline">KADA CONNECT HERE!</h1>
-        <p>
-          KADA CONNECT is a platform for KADA trainees to connect with companies
-          and potential hiring.
-        </p>
-      </div>
-    </>
+    <BrowserRouter>
+      <Routes>
+        <Route path="/login" element={<Auth />} />
+        <Route path="/" element={<HomePage />} />
+        <Route path="/company" element={<CompanyPage />} />
+
+      </Routes>
+    </BrowserRouter>
   );
 }
 

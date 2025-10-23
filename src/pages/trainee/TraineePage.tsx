@@ -5,5 +5,4 @@ export default function TraineePage() {
         <p className="text-gray-600">Trainee data will appear here.</p>
       </section>
     );
-  }
-  
+}
