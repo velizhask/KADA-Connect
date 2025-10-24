@@ -58,7 +58,7 @@ const Auth = () => {
         description: "Welcome to KADA Connect.",
       });
 
-      navigate(userType === "company" ? "/company" : "/trainee");
+      navigate(userType === "company" ? "/trainees" : "/companies");
     } catch (error: any) {
       toast.error("Error", {
         description: error.message || "Failed to create account",

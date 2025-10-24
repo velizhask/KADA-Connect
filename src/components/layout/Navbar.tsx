@@ -55,7 +55,7 @@ const Navbar = () => {
             size="sm"
             asChild
           >
-            <Link to="/company">
+            <Link to="/companies">
               <Building2 className="mr-2 h-4 w-4" />
               Companies
             </Link>
