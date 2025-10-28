@@ -3,9 +3,10 @@ import MainLayout from "@/layouts/MainLayout";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { FileText, Filter, ExternalLink } from "lucide-react";
+import { FileText, Filter, ExternalLink, UserCircle } from "lucide-react";
 import { lookupServices } from "@/services/lookupServices";
 import { studentServices } from "@/services/studentServices";
+import { toast } from "sonner";
 import {
   Select,
   SelectContent,
@@ -18,7 +19,6 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogDescription,
 } from "@/components/ui/dialog";
 
 interface Trainee {
@@ -69,7 +69,7 @@ const TraineePage = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  //  Load lookup data
+  // Fetch lookup data
   useEffect(() => {
     const fetchLookups = async () => {
       try {
@@ -91,7 +91,6 @@ const TraineePage = () => {
     fetchLookups();
   }, []);
 
-  // Fetch trainees with all filters
   useEffect(() => {
     fetchTrainees(pagination.page);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -108,7 +107,6 @@ const TraineePage = () => {
   const fetchTrainees = async (page: number) => {
     try {
       setLoading(true);
-
       const filters = {
         page,
         limit: pagination.limit,
@@ -129,7 +127,7 @@ const TraineePage = () => {
       setError(null);
     } catch (err) {
       console.error("Fetch trainees error:", err);
-      setError("Failed to fetch trainees");
+      setError("Oops! Something went wrong while loading the page.");
     } finally {
       setLoading(false);
     }
@@ -141,10 +139,17 @@ const TraineePage = () => {
     }
   };
 
+  const handleLinkClick = (url?: string | null, label?: string) => {
+    if (!url || !url.startsWith("http")) {
+      toast.error(`${label || "This link"} is not available.`);
+      return;
+    }
+    window.open(url, "_blank", "noopener,noreferrer");
+  };
+
   return (
     <MainLayout>
       <div className="container px-4 py-8 md:px-6">
-        {/* Header */}
         <div className="mb-8">
           <h1 className="mb-3 text-3xl font-bold md:text-4xl">KADA Trainees</h1>
           <p className="text-lg text-muted-foreground">
@@ -153,7 +158,7 @@ const TraineePage = () => {
           </p>
         </div>
 
-        {/* Filters */}
+        {/* Filter Section */}
         <Card className="mb-8 p-6 shadow-sm border border-gray-100">
           <div className="mb-6 flex items-center justify-between flex-wrap gap-2">
             <div className="flex items-center gap-2 text-gray-700 font-semibold text-base">
@@ -185,16 +190,35 @@ const TraineePage = () => {
               onChange={setSearchTerm}
               placeholder="Search trainee name..."
             />
-            <FilterSelect label="Status" value={selectedStatus} onChange={setSelectedStatus} items={statuses} />
-            <FilterSelect label="University" value={selectedUniversity} onChange={setSelectedUniversity} items={universities} />
-            <FilterSelect label="Major" value={selectedMajor} onChange={setSelectedMajor} items={majors} />
-            <FilterSelect label="Industry" value={selectedIndustry} onChange={setSelectedIndustry} items={industries} />
+            <FilterSelect
+              label="Status"
+              value={selectedStatus}
+              onChange={setSelectedStatus}
+              items={statuses}
+            />
+            <FilterSelect
+              label="University"
+              value={selectedUniversity}
+              onChange={setSelectedUniversity}
+              items={universities}
+            />
+            <FilterSelect
+              label="Major"
+              value={selectedMajor}
+              onChange={setSelectedMajor}
+              items={majors}
+            />
+            <FilterSelect
+              label="Industry"
+              value={selectedIndustry}
+              onChange={setSelectedIndustry}
+              items={industries}
+            />
             <FilterSelect
               label="Tech Skills"
               value={selectedSkill}
               onChange={setSelectedSkill}
               items={skills.map((s) => s.name)}
-              valueMap={skills.map((s) => s.name)}
             />
           </div>
         </Card>
@@ -209,7 +233,11 @@ const TraineePage = () => {
               </div>
               <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
                 {trainees.map((t) => (
-                  <TraineeCard key={t.id} trainee={t} onClick={() => setSelectedTrainee(t)} />
+                  <TraineeCard
+                    key={t.id}
+                    trainee={t}
+                    onClick={() => setSelectedTrainee(t)}
+                  />
                 ))}
               </div>
 
@@ -241,27 +269,58 @@ const TraineePage = () => {
               No trainees match your filters.
             </div>
           )}
-          {loading && <div className="py-24 text-center text-muted-foreground">Loading trainees...</div>}
-          {error && <div className="py-24 text-center text-red-500">{error}</div>}
+          {loading && (
+            <div className="py-24 text-center text-muted-foreground">
+              Loading trainees...
+            </div>
+          )}
+          {error && (
+            <div className="py-24 text-center text-red-500">{error}</div>
+          )}
         </div>
 
         {/* Profile Dialog */}
-        <Dialog open={!!selectedTrainee} onOpenChange={() => setSelectedTrainee(null)}>
+        <Dialog
+          open={!!selectedTrainee}
+          onOpenChange={() => setSelectedTrainee(null)}
+        >
           <DialogContent className="max-w-2xl">
-            <DialogHeader>
-              <DialogTitle className="text-2xl font-bold">{selectedTrainee?.fullName}</DialogTitle>
-              <DialogDescription>Detailed trainee profile information</DialogDescription>
+            <DialogHeader className="pb-4">
+              {/* Header Flex Layout: Photo | Info */}
+              {selectedTrainee && (
+                <div className="flex items-center gap-4">
+                  {/* Profile Image */}
+                  <ProfileImage
+                    imageUrl={selectedTrainee.profilePhoto}
+                    alt={selectedTrainee.fullName}
+                  />
+
+                  {/* Name + Status */}
+                  <div className="flex flex-col">
+                    <DialogTitle className="text-2xl font-bold">
+                      {selectedTrainee.fullName}
+                    </DialogTitle>
+
+                    <div className="flex items-center gap-2 mt-1">
+                      <Badge variant="outline">{selectedTrainee.status}</Badge>
+                    </div>
+                  </div>
+                </div>
+              )}
             </DialogHeader>
 
             {selectedTrainee && (
-              <div className="space-y-4 mt-4">
-                <div className="flex items-center gap-4">
-                  {selectedTrainee.profilePhoto && (
-                    <img src={selectedTrainee.profilePhoto} alt={selectedTrainee.fullName} className="w-20 h-20 rounded-full object-cover" />
-                  )}
-                  <Badge variant="outline">{selectedTrainee.status}</Badge>
+              <div className="space-y-4 mt-1">
+                {/* Introduction */}
+                <div>
+                  <h4 className="font-semibold">Introduction</h4>
+                  <p className="text-sm text-muted-foreground">
+                    {selectedTrainee.selfIntroduction ||
+                      "No introduction available."}
+                  </p>
                 </div>
 
+                {/* University & Major */}
                 <div>
                   <h4 className="font-semibold">University</h4>
                   <p className="text-sm text-muted-foreground">
@@ -269,11 +328,13 @@ const TraineePage = () => {
                   </p>
                 </div>
 
+                {/* Preferred Industry */}
                 <div>
                   <h4 className="font-semibold">Preferred Industry</h4>
                   <Badge>{selectedTrainee.preferredIndustry || "N/A"}</Badge>
                 </div>
 
+                {/* Tech Stack */}
                 <div>
                   <h4 className="font-semibold">Tech Stack</h4>
                   <div className="flex flex-wrap gap-2">
@@ -285,35 +346,43 @@ const TraineePage = () => {
                   </div>
                 </div>
 
-                <div>
-                  <h4 className="font-semibold">Introduction</h4>
-                  <p className="text-sm text-muted-foreground">
-                    {selectedTrainee.selfIntroduction || "No introduction available."}
-                  </p>
-                </div>
-
+                {/* Buttons */}
                 <div className="flex flex-wrap gap-2 mt-4">
-                  {selectedTrainee.cvUpload && (
-                    <Button variant="default" asChild>
-                      <a href={selectedTrainee.cvUpload} target="_blank" rel="noopener noreferrer">
-                        <FileText className="mr-2 h-4 w-4" /> View CV
-                      </a>
-                    </Button>
-                  )}
-                  {selectedTrainee.portfolioLink && (
-                    <Button variant="outline" asChild>
-                      <a href={selectedTrainee.portfolioLink} target="_blank" rel="noopener noreferrer">
-                        <ExternalLink className="mr-2 h-4 w-4" /> Portfolio
-                      </a>
-                    </Button>
-                  )}
-                  {selectedTrainee.linkedin && (
-                    <Button variant="outline" asChild>
-                      <a href={selectedTrainee.linkedin} target="_blank" rel="noopener noreferrer">
-                        LinkedIn
-                      </a>
-                    </Button>
-                  )}
+                  <Button
+                    variant="default"
+                    onClick={() =>
+                      handleLinkClick(
+                        selectedTrainee.cvUpload ?? undefined,
+                        "CV"
+                      )
+                    }
+                  >
+                    <FileText className="mr-2 h-4 w-4" /> View CV
+                  </Button>
+
+                  <Button
+                    variant="outline"
+                    onClick={() =>
+                      handleLinkClick(
+                        selectedTrainee.portfolioLink ?? undefined,
+                        "Portfolio"
+                      )
+                    }
+                  >
+                    <ExternalLink className="mr-2 h-4 w-4" /> Portfolio
+                  </Button>
+
+                  <Button
+                    variant="outline"
+                    onClick={() =>
+                      handleLinkClick(
+                        selectedTrainee.linkedin ?? undefined,
+                        "LinkedIn"
+                      )
+                    }
+                  >
+                    LinkedIn
+                  </Button>
                 </div>
               </div>
             )}
@@ -324,10 +393,48 @@ const TraineePage = () => {
   );
 };
 
-// Reusable Filter Components
+const formatDriveUrl = (input?: string | null): string | undefined => {
+  if (!input) return undefined;
+
+  // If user only stored the raw file ID (e.g., "1YGGjHVoCf7bDGVnz-5wbOjT_mRnMneo")
+  if (/^[\w-]{25,}$/.test(input)) {
+    return `https://drive.google.com/uc?export=view&id=${input}`;
+  }
+
+  // If it's a Google Drive URL
+  const idMatch = input.match(/(?:id=|\/d\/)([-\w]{25,})/)?.[1];
+  if (idMatch) {
+    return `https://drive.google.com/uc?export=view&id=${idMatch}`;
+  }
+
+  // Otherwise, return the original (if already valid URL)
+  return input.startsWith("http") ? input : undefined;
+};
+
+// ProfileImage with fallback if link broken
+const ProfileImage = ({ imageUrl, alt }: { imageUrl?: string; alt: string }) => {
+  const [isError, setIsError] = useState(false);
+  const finalUrl = formatDriveUrl(imageUrl);
+
+  if (!finalUrl || isError) {
+    return <UserCircle className="w-20 h-20 text-gray-400" />;
+  }
+
+  return (
+    <img
+      src={finalUrl}
+      alt={alt}
+      className="w-20 h-20 rounded-full object-cover"
+      onError={() => setIsError(true)}
+    />
+  );
+};
+
 const FilterInput = ({ label, value, onChange, placeholder }: any) => (
   <div>
-    <label className="mb-2 block text-sm font-medium text-gray-700">{label}</label>
+    <label className="mb-2 block text-sm font-medium text-gray-700">
+      {label}
+    </label>
     <input
       type="text"
       value={value}
@@ -338,9 +445,11 @@ const FilterInput = ({ label, value, onChange, placeholder }: any) => (
   </div>
 );
 
-const FilterSelect = ({ label, value, onChange, items, valueMap }: any) => (
+const FilterSelect = ({ label, value, onChange, items }: any) => (
   <div>
-    <label className="mb-2 block text-sm font-medium text-gray-700">{label}</label>
+    <label className="mb-2 block text-sm font-medium text-gray-700">
+      {label}
+    </label>
     <Select value={value} onValueChange={onChange}>
       <SelectTrigger className="w-full">
         <SelectValue placeholder={`All ${label}`} />
@@ -348,7 +457,7 @@ const FilterSelect = ({ label, value, onChange, items, valueMap }: any) => (
       <SelectContent>
         <SelectItem value="all">All {label}</SelectItem>
         {items.map((item: string, i: number) => (
-          <SelectItem key={i} value={valueMap ? valueMap[i] : item}>
+          <SelectItem key={i} value={item}>
             {item}
           </SelectItem>
         ))}
@@ -357,56 +466,72 @@ const FilterSelect = ({ label, value, onChange, items, valueMap }: any) => (
   </div>
 );
 
-const TraineeCard = ({ trainee, onClick }: { trainee: Trainee; onClick: () => void }) => (
-  <Card className="group cursor-pointer overflow-hidden border border-gray-100 hover:border-primary-200 hover:shadow-md transition-all duration-300 rounded-2xl bg-white">
-    <div className="p-6 flex flex-col items-center text-center space-y-3">
-      {trainee.profilePhoto ? (
-        <img
-          src={trainee.profilePhoto}
-          alt={trainee.fullName}
-          className="w-24 h-24 rounded-full object-cover shadow-sm group-hover:scale-105 transition-transform duration-300"
-        />
-      ) : (
-        <div className="w-24 h-24 rounded-full bg-gray-200 flex items-center justify-center text-gray-500 text-xl font-semibold">
-          {trainee.fullName.charAt(0).toUpperCase()}
-        </div>
-      )}
+// Card with same fallback
+const TraineeCard = ({
+  trainee,
+  onClick,
+}: {
+  trainee: Trainee;
+  onClick: () => void;
+}) => {
+  const [isError, setIsError] = useState(false);
 
-      <h3 className="text-xl font-semibold text-gray-900 group-hover:text-primary-600 transition-colors">
-        {trainee.fullName}
-      </h3>
-      <Badge variant="outline" className="border-primary-400 text-primary-700 bg-primary-50">
-        {trainee.status}
-      </Badge>
-      <p className="text-sm text-gray-600 leading-tight">
-        {trainee.university} <br /> {trainee.major}
-      </p>
+  return (
+    <Card className="group cursor-pointer overflow-hidden border border-gray-100 hover:border-primary-200 hover:shadow-md transition-all duration-300 rounded-2xl bg-white">
+      <div className="p-6 flex flex-col items-center text-center space-y-3">
+        {trainee.profilePhoto && !isError ? (
+          <img
+            src={trainee.profilePhoto}
+            alt={trainee.fullName}
+            className="w-24 h-24 rounded-full object-cover shadow-sm group-hover:scale-105 transition-transform duration-300"
+            onError={() => setIsError(true)}
+          />
+        ) : (
+          <UserCircle className="w-24 h-24 text-gray-400" />
+        )}
 
-      {trainee.preferredIndustry && (
-        <div className="text-xs bg-gray-100 px-3 py-1 rounded-full font-medium text-gray-700">
-          {trainee.preferredIndustry}
-        </div>
-      )}
+        <h3 className="text-xl font-semibold text-gray-900 group-hover:text-primary-600 transition-colors">
+          {trainee.fullName}
+        </h3>
+        <Badge
+          variant="outline"
+          className="border-primary-400 text-primary-700 bg-primary-50"
+        >
+          {trainee.status}
+        </Badge>
+        <p className="text-sm text-gray-600 leading-tight">
+          {trainee.university} <br /> {trainee.major}
+        </p>
 
-      {trainee.techStack && (
-        <div className="flex flex-wrap justify-center gap-2 mt-2">
-          {trainee.techStack.split(",").slice(0, 3).map((tech) => (
-            <Badge key={tech.trim()} variant="secondary">
-              {tech.trim()}
-            </Badge>
-          ))}
-        </div>
-      )}
+        {trainee.preferredIndustry && (
+          <div className="text-xs bg-gray-100 px-3 py-1 rounded-full font-medium text-gray-700">
+            {trainee.preferredIndustry}
+          </div>
+        )}
 
-      <Button
-        variant="default"
-        className="mt-4 w-full bg-primary hover:bg-primary/90 text-primary-foreground"
-        onClick={onClick}
-      >
-        View Profile
-      </Button>
-    </div>
-  </Card>
-);
+        {trainee.techStack && (
+          <div className="flex flex-wrap justify-center gap-2 mt-2">
+            {trainee.techStack
+              .split(",")
+              .slice(0, 3)
+              .map((tech) => (
+                <Badge key={tech.trim()} variant="secondary">
+                  {tech.trim()}
+                </Badge>
+              ))}
+          </div>
+        )}
+
+        <Button
+          variant="default"
+          className="mt-4 w-full bg-primary hover:bg-primary/90 text-primary-foreground"
+          onClick={onClick}
+        >
+          View Profile
+        </Button>
+      </div>
+    </Card>
+  );
+};
 
 export default TraineePage;

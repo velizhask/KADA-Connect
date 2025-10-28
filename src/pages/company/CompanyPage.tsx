@@ -3,9 +3,10 @@ import MainLayout from "@/layouts/MainLayout";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ExternalLink, Filter, Mail, Phone } from "lucide-react";
+import { ExternalLink, Filter, Mail, Phone, Building2 } from "lucide-react";
 import { lookupServices } from "@/services/lookupServices";
 import { companyServices } from "@/services/companyServices";
+import { toast } from "sonner";
 import {
   Select,
   SelectContent,
@@ -97,7 +98,7 @@ const CompanyPage = () => {
       setError(null);
     } catch (err) {
       console.error("Fetch error:", err);
-      setError("Failed to fetch companies");
+      setError("Oops! Something went wrong while loading the page.");
     } finally {
       setLoading(false);
     }
@@ -221,8 +222,8 @@ const CompanyPage = () => {
           {!loading && !error && companies.length > 0 && (
             <>
               <div className="mb-4 text-sm text-muted-foreground">
-                Showing {companies.length} of {pagination.total} companies — Page{" "}
-                {pagination.page} of {pagination.totalPages}
+                Showing {companies.length} of {pagination.total} companies —
+                Page {pagination.page} of {pagination.totalPages}
               </div>
               <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
                 {companies.map((company) => (
@@ -274,38 +275,113 @@ const CompanyPage = () => {
   );
 };
 
+// Company Logo with fallback (Building2 icon)
+const CompanyLogo = ({ logo, name }: { logo?: string; name: string }) => {
+  const [isError, setIsError] = useState(false);
+
+  // Helper: format Google Drive link jadi direct-view URL
+  const getGoogleDriveImageUrl = (url: string) => {
+    if (!url) return "";
+
+    // Trim whitespace
+    url = url.trim();
+
+    // Pattern 1: Jika hanya ID murni (25+ karakter, alphanumeric + dash/underscore)
+    if (/^[\w-]{25,}$/.test(url)) {
+      return `https://drive.google.com/uc?export=view&id=${url}`;
+    }
+
+    // Pattern 2: URL dengan 'id=' (contoh: ?id=FILE_ID atau &id=FILE_ID)
+    const idMatch = url.match(/[?&]id=([\w-]+)/);
+    if (idMatch?.[1]) {
+      return `https://drive.google.com/uc?export=view&id=${idMatch[1]}`;
+    }
+
+    // Pattern 3: URL dengan '/d/FILE_ID' atau '/file/d/FILE_ID'
+    const dMatch = url.match(/\/d\/([\w-]+)/);
+    if (dMatch?.[1]) {
+      return `https://drive.google.com/uc?export=view&id=${dMatch[1]}`;
+    }
+
+    // Pattern 4: Jika sudah format uc?export=view, biarkan
+    if (url.includes('uc?export=view')) {
+      return url;
+    }
+
+    // Kalau bukan dari Drive atau format tidak dikenal, biarkan aslinya
+    return url.startsWith("http") ? url : "";
+  };
+
+  const finalLogoUrl = logo ? getGoogleDriveImageUrl(logo) : null;
+
+  console.log("🟢 Original:", logo);
+  console.log("✅ Final logo URL:", finalLogoUrl);
+
+  // Fallback icon jika gagal load
+  if (!finalLogoUrl || isError) {
+    return (
+      <div className="w-20 h-20 flex items-center justify-center bg-gray-100 rounded-md text-gray-400 mb-3">
+        <Building2 className="h-10 w-10" />
+      </div>
+    );
+  }
+
+  return (
+    <img
+      src={finalLogoUrl}
+      alt={name}
+      loading="lazy"
+      crossOrigin="anonymous"
+      className="w-20 h-20 object-contain rounded-md mb-3 group-hover:scale-105 transition-transform duration-300"
+      onError={() => {
+        console.warn(`❌ Failed to load image for ${name}:`, finalLogoUrl);
+        setIsError(true);
+      }}
+    />
+  );
+};
+
 // Company Card
-// Company Card Component
 const CompanyCard = ({ company }: { company: Company }) => {
   const hasTechRoles = company.techRoles && company.techRoles.trim() !== "";
-  const hasSkills = company.preferredSkillsets && company.preferredSkillsets.trim() !== "";
+  const hasSkills =
+    company.preferredSkillsets && company.preferredSkillsets.trim() !== "";
+
+  const handleWebsiteClick = (url?: string) => {
+    if (!url || !url.startsWith("http")) {
+      toast.warning("This company doesn’t have a valid website link.");
+      return;
+    }
+    window.open(url, "_blank", "noopener,noreferrer");
+  };
 
   return (
     <Card className="group relative overflow-hidden border border-gray-100 bg-white hover:border-primary-200 hover:shadow-md transition-all duration-300 rounded-2xl">
       <div className="p-6 flex flex-col h-full">
         {/* Logo + Name + Industry */}
         <div className="flex flex-col items-center text-center mb-4">
-          {company.logo ? (
-            <img
-              src={company.logo}
-              alt={company.companyName}
-              className="w-20 h-20 object-contain rounded-md mb-3 group-hover:scale-105 transition-transform duration-300"
-            />
-          ) : (
-            <div className="w-20 h-20 rounded-md bg-gray-100 flex items-center justify-center text-lg font-semibold text-gray-500 mb-3">
-              {company.companyName.charAt(0).toUpperCase()}
-            </div>
-          )}
+          <CompanyLogo logo={company.logo} name={company.companyName} />
 
           <h3 className="text-lg font-semibold text-gray-900 mb-1 group-hover:text-primary-600 transition-colors">
             {company.companyName}
           </h3>
-          <Badge
-            variant="outline"
-            className="text-xs border-primary-300 text-primary-700 bg-primary-50"
-          >
-            {company.industry}
-          </Badge>
+          {company.industry && (
+            <div className="flex flex-wrap justify-center gap-2">
+              {company.industry
+                .split(",")
+                .map((ind) => ind.trim())
+                .filter((i) => i.length > 0)
+                .map((ind) => (
+                  <Badge
+                    key={ind}
+                    variant="outline"
+                    className="text-xs border-primary-300 text-primary-700 bg-primary-50"
+                  >
+                    {ind}
+                  </Badge>
+                ))}
+            </div>
+          )}
         </div>
 
         {/* Summary */}
@@ -368,7 +444,7 @@ const CompanyCard = ({ company }: { company: Company }) => {
           <div className="mt-auto mb-4 text-xs text-gray-500 text-center space-y-1">
             {company.contactPerson && (
               <p className="font-medium text-gray-700">
-                📇 {company.contactPerson}
+                {company.contactPerson}
               </p>
             )}
             {company.contactEmail && (
@@ -387,26 +463,17 @@ const CompanyCard = ({ company }: { company: Company }) => {
         )}
 
         {/* Website Link */}
-        {company.website && (
-          <Button
-            variant="default"
-            className="w-full mt-auto bg-primary hover:bg-primary/90 text-white"
-            asChild
-          >
-            <a
-              href={company.website}
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Visit Website
-              <ExternalLink className="ml-2 h-4 w-4" />
-            </a>
-          </Button>
-        )}
+        <Button
+          variant="default"
+          className="w-full mt-auto bg-primary hover:bg-primary/90 text-white"
+          onClick={() => handleWebsiteClick(company.website)}
+        >
+          Visit Website
+          <ExternalLink className="ml-2 h-4 w-4" />
+        </Button>
       </div>
     </Card>
   );
 };
-
 
 export default CompanyPage;
