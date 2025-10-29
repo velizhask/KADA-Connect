@@ -283,21 +283,55 @@ const TraineePage = () => {
                 ))}
               </div>
 
-              <div className="flex items-center justify-center gap-4 mt-8">
+              <div className="flex items-center justify-between mt-8 gap-4 flex-wrap">
                 <Button
                   variant="outline"
                   disabled={pagination.page <= 1}
                   onClick={() => handlePageChange(pagination.page - 1)}
+                  className="min-w-[100px]"
                 >
                   Previous
                 </Button>
-                <span className="text-sm text-gray-600">
-                  Page {pagination.page} of {pagination.totalPages}
-                </span>
+                
+                <div className="flex items-center gap-2">
+                  {Array.from({ length: pagination.totalPages }, (_, i) => i + 1)
+                    .filter((pageNum) => {
+                      const current = pagination.page;
+                      return (
+                        pageNum === 1 ||
+                        pageNum === pagination.totalPages ||
+                        (pageNum >= current - 1 && pageNum <= current + 1)
+                      );
+                    })
+                    .map((pageNum, index, array) => {
+                      const prevPage = array[index - 1];
+                      const showEllipsis = prevPage && pageNum - prevPage > 1;
+                      
+                      return (
+                        <div key={pageNum} className="flex items-center gap-2">
+                          {showEllipsis && (
+                            <span className="text-gray-400 px-1">•••</span>
+                          )}
+                          <button
+                            onClick={() => handlePageChange(pageNum)}
+                            className={`w-10 h-10 rounded-lg text-sm font-medium transition-all duration-200 ${
+                              pagination.page === pageNum
+                                ? "bg-primary text-white shadow-sm"
+                                : "bg-white border border-gray-200 text-gray-700 hover:border-primary-300 hover:bg-primary-50"
+                            }`}
+                          >
+                            {pageNum}
+                          </button>
+                        </div>
+                      );
+                    })}
+                </div>
+
                 <Button
                   variant="outline"
                   disabled={pagination.page >= pagination.totalPages}
                   onClick={() => handlePageChange(pagination.page + 1)}
+                  className="min-w-[100px]"
                 >
                   Next
                 </Button>
