@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { toast } from "sonner"; 
+import { toast, Toaster } from "sonner"; 
 import { z } from "zod";
 
 const signupSchema = z.object({
@@ -105,6 +105,8 @@ const Auth = () => {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-linear-to-br from-background via-background to-primary/5 px-4">
+      <Toaster richColors position="top-center" />
+
       <Card className="w-full max-w-md p-8">
         <div className="mb-6 text-center">
           <h1 className="text-3xl font-bold mb-2">KADA Connect</h1>
@@ -201,6 +203,7 @@ const Auth = () => {
         </Tabs>
       </Card>
     </div>
+    
   );
 };
 

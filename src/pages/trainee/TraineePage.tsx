@@ -20,6 +20,36 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { LoadingSpinner } from "@/components/common/LoadingSpinner";
+
+// Helper: Google Drive Formatter
+const formatDriveUrl = (input?: string | null): string | undefined => {
+  if (!input) return undefined;
+  const url = input.trim();
+
+  // Case 1: pure file ID
+  if (/^[\w-]{25,}$/.test(url)) {
+    return `https://drive.google.com/uc?export=view&id=${url}`;
+  }
+
+  // Case 2: pattern ?id= or open?id=
+  const idMatch = url.match(/(?:id=|open\?id=)([-\w]{25,})/)?.[1];
+  if (idMatch) {
+    return `https://drive.google.com/uc?export=view&id=${idMatch}`;
+  }
+
+  // Case 3: pattern /d/FILE_ID
+  const dMatch = url.match(/\/d\/([-\\w]{25,})/)?.[1];
+  if (dMatch) {
+    return `https://drive.google.com/uc?export=view&id=${dMatch}`;
+  }
+
+  // Case 4: already correct format
+  if (url.includes("uc?export=view")) return url;
+
+  // Default: return valid URL only
+  return url.startsWith("http") ? url : undefined;
+};
 
 interface Trainee {
   id: number;
@@ -69,21 +99,31 @@ const TraineePage = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Fetch lookup data
+  // Fetch Lookup Data
   useEffect(() => {
     const fetchLookups = async () => {
       try {
         const [indRes, skillsRes, univRes, majorsRes] = await Promise.all([
           lookupServices.getIndustries(),
           lookupServices.getPopularTechSkills(),
-          studentServices.getUniversities(),
-          studentServices.getMajors(),
+          lookupServices.getUniversities(),
+          lookupServices.getMajors(),
         ]);
 
         setIndustries(indRes.data?.data || []);
         setSkills(skillsRes.data?.data || []);
-        setUniversities(univRes.data?.data || []);
-        setMajors(majorsRes.data?.data || []);
+
+        const universitiesData = (univRes.data?.data || []).map((u: any) => {
+          const val =
+            typeof u === "string" ? u : u.name || u.university || u.label || "";
+          return val.trim().replace(/\s+/g, " ");
+        });
+        const majorsData = (majorsRes.data?.data || []).map((m: any) =>
+          typeof m === "string" ? m : m.name || m.major || m.label || ""
+        );
+
+        setUniversities(universitiesData.filter(Boolean));
+        setMajors(majorsData.filter(Boolean));
       } catch (err) {
         console.error("Lookup fetch error:", err);
       }
@@ -91,6 +131,7 @@ const TraineePage = () => {
     fetchLookups();
   }, []);
 
+  // Fetch Trainee Data
   useEffect(() => {
     fetchTrainees(pagination.page);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -149,7 +190,7 @@ const TraineePage = () => {
 
   return (
     <MainLayout>
-      <div className="container px-4 py-8 md:px-6">
+      <div className="w-full max-w-7xl mx-auto px-4 md:px-6 py-8">
         <div className="mb-8">
           <h1 className="mb-3 text-3xl font-bold md:text-4xl">KADA Trainees</h1>
           <p className="text-lg text-muted-foreground">
@@ -183,12 +224,13 @@ const TraineePage = () => {
             </Button>
           </div>
 
+          {/* Filter Inputs */}
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             <FilterInput
               label="Search"
               value={searchTerm}
               onChange={setSearchTerm}
-              placeholder="Search trainee name..."
+              placeholder="Search trainee..."
             />
             <FilterSelect
               label="Status"
@@ -199,7 +241,7 @@ const TraineePage = () => {
             <FilterSelect
               label="University"
               value={selectedUniversity}
-              onChange={setSelectedUniversity}
+              onChange={(val: string) => setSelectedUniversity(val.trim())}
               items={universities}
             />
             <FilterSelect
@@ -223,7 +265,7 @@ const TraineePage = () => {
           </div>
         </Card>
 
-        {/* Results */}
+        {/* Results Section */}
         <div className="flex-1 transition-all duration-300">
           {!loading && !error && trainees.length > 0 && (
             <>
@@ -241,7 +283,6 @@ const TraineePage = () => {
                 ))}
               </div>
 
-              {/* Pagination Controls */}
               <div className="flex items-center justify-center gap-4 mt-8">
                 <Button
                   variant="outline"
@@ -269,38 +310,30 @@ const TraineePage = () => {
               No trainees match your filters.
             </div>
           )}
-          {loading && (
-            <div className="py-24 text-center text-muted-foreground">
-              Loading trainees...
-            </div>
-          )}
+          {loading && <LoadingSpinner text="Loading trainee..." />}
+
           {error && (
             <div className="py-24 text-center text-red-500">{error}</div>
           )}
         </div>
 
-        {/* Profile Dialog */}
+        {/* Dialog */}
         <Dialog
           open={!!selectedTrainee}
           onOpenChange={() => setSelectedTrainee(null)}
         >
-          <DialogContent className="max-w-2xl">
+          <DialogContent className="max-w-2xl w-[90vw] md:w-[700px] max-h-[85vh] overflow-y-auto rounded-2xl">
             <DialogHeader className="pb-4">
-              {/* Header Flex Layout: Photo | Info */}
               {selectedTrainee && (
                 <div className="flex items-center gap-4">
-                  {/* Profile Image */}
                   <ProfileImage
                     imageUrl={selectedTrainee.profilePhoto}
                     alt={selectedTrainee.fullName}
                   />
-
-                  {/* Name + Status */}
                   <div className="flex flex-col">
-                    <DialogTitle className="text-2xl font-bold">
+                    <DialogTitle className="text-2xl font-medium">
                       {selectedTrainee.fullName}
                     </DialogTitle>
-
                     <div className="flex items-center gap-2 mt-1">
                       <Badge variant="outline">{selectedTrainee.status}</Badge>
                     </div>
@@ -311,32 +344,41 @@ const TraineePage = () => {
 
             {selectedTrainee && (
               <div className="space-y-4 mt-1">
-                {/* Introduction */}
                 <div>
-                  <h4 className="font-semibold">Introduction</h4>
+                  <h4 className="font-medium mb-1">Introduction</h4>
                   <p className="text-sm text-muted-foreground">
                     {selectedTrainee.selfIntroduction ||
                       "No introduction available."}
                   </p>
                 </div>
 
-                {/* University & Major */}
                 <div>
-                  <h4 className="font-semibold">University</h4>
+                  <h4 className="font-medium mb-1">University</h4>
                   <p className="text-sm text-muted-foreground">
                     {selectedTrainee.university} — {selectedTrainee.major}
                   </p>
                 </div>
 
-                {/* Preferred Industry */}
                 <div>
-                  <h4 className="font-semibold">Preferred Industry</h4>
-                  <Badge>{selectedTrainee.preferredIndustry || "N/A"}</Badge>
+                  <h4 className="font-medium mb-1">Preferred Industry</h4>
+                  <div className="flex flex-wrap gap-2">
+                    {selectedTrainee.preferredIndustry ? (
+                      selectedTrainee.preferredIndustry
+                        .split(/\s*,\s*/)
+                        .filter(Boolean)
+                        .map((ind) => (
+                          <Badge key={ind} variant="outline">
+                            {ind}
+                          </Badge>
+                        ))
+                    ) : (
+                      <Badge variant="outline">N/A</Badge>
+                    )}
+                  </div>
                 </div>
 
-                {/* Tech Stack */}
                 <div>
-                  <h4 className="font-semibold">Tech Stack</h4>
+                  <h4 className="font-medium mb-1">Tech Stack</h4>
                   <div className="flex flex-wrap gap-2">
                     {selectedTrainee.techStack?.split(",").map((tech) => (
                       <Badge key={tech.trim()} variant="secondary">
@@ -346,7 +388,6 @@ const TraineePage = () => {
                   </div>
                 </div>
 
-                {/* Buttons */}
                 <div className="flex flex-wrap gap-2 mt-4">
                   <Button
                     variant="default"
@@ -359,7 +400,6 @@ const TraineePage = () => {
                   >
                     <FileText className="mr-2 h-4 w-4" /> View CV
                   </Button>
-
                   <Button
                     variant="outline"
                     onClick={() =>
@@ -371,7 +411,6 @@ const TraineePage = () => {
                   >
                     <ExternalLink className="mr-2 h-4 w-4" /> Portfolio
                   </Button>
-
                   <Button
                     variant="outline"
                     onClick={() =>
@@ -393,31 +432,24 @@ const TraineePage = () => {
   );
 };
 
-const formatDriveUrl = (input?: string | null): string | undefined => {
-  if (!input) return undefined;
+// Reusable Components
 
-  // If user only stored the raw file ID (e.g., "1YGGjHVoCf7bDGVnz-5wbOjT_mRnMneo")
-  if (/^[\w-]{25,}$/.test(input)) {
-    return `https://drive.google.com/uc?export=view&id=${input}`;
-  }
-
-  // If it's a Google Drive URL
-  const idMatch = input.match(/(?:id=|\/d\/)([-\w]{25,})/)?.[1];
-  if (idMatch) {
-    return `https://drive.google.com/uc?export=view&id=${idMatch}`;
-  }
-
-  // Otherwise, return the original (if already valid URL)
-  return input.startsWith("http") ? input : undefined;
-};
-
-// ProfileImage with fallback if link broken
-const ProfileImage = ({ imageUrl, alt }: { imageUrl?: string; alt: string }) => {
+const ProfileImage = ({
+  imageUrl,
+  alt,
+}: {
+  imageUrl?: string;
+  alt: string;
+}) => {
   const [isError, setIsError] = useState(false);
   const finalUrl = formatDriveUrl(imageUrl);
 
   if (!finalUrl || isError) {
-    return <UserCircle className="w-20 h-20 text-gray-400" />;
+    return (
+      <div className="w-24 h-24 flex items-center justify-center bg-gray-50 rounded-xl shrink-0">
+        <UserCircle className="w-16 h-16 text-gray-300" />
+      </div>
+    );
   }
 
   return (
@@ -466,7 +498,6 @@ const FilterSelect = ({ label, value, onChange, items }: any) => (
   </div>
 );
 
-// Card with same fallback
 const TraineeCard = ({
   trainee,
   onClick,
@@ -475,63 +506,121 @@ const TraineeCard = ({
   onClick: () => void;
 }) => {
   const [isError, setIsError] = useState(false);
+  const photoUrl = formatDriveUrl(trainee.profilePhoto);
+
+  // Format name to title case
+  const formatName = (name: string) => {
+    return name
+      .toLowerCase()
+      .split(" ")
+      .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(" ");
+  };
+
+  // Get status badge style based on status
+  const getStatusBadgeClass = (status: string) => {
+    const lowerStatus = status.toLowerCase();
+
+    if (lowerStatus.includes("alumni")) {
+      return "border-purple-200 text-purple-700 bg-purple-50";
+    }
+
+    // Current trainee (default)
+    return "border-primary-200 text-primary-700 bg-primary-50";
+  };
 
   return (
-    <Card className="group cursor-pointer overflow-hidden border border-gray-100 hover:border-primary-200 hover:shadow-md transition-all duration-300 rounded-2xl bg-white">
-      <div className="p-6 flex flex-col items-center text-center space-y-3">
-        {trainee.profilePhoto && !isError ? (
-          <img
-            src={trainee.profilePhoto}
-            alt={trainee.fullName}
-            className="w-24 h-24 rounded-full object-cover shadow-sm group-hover:scale-105 transition-transform duration-300"
-            onError={() => setIsError(true)}
-          />
-        ) : (
-          <UserCircle className="w-24 h-24 text-gray-400" />
-        )}
+    <Card className="group overflow-hidden border-0 hover:shadow-lg transition-all duration-300 rounded-xl bg-white shadow-sm">
+      <div className="p-5">
+        {/* Header Section - Photo & Name */}
+        <div className="flex items-start gap-4 mb-4">
+          {photoUrl && !isError ? (
+            <img
+              src={photoUrl}
+              alt={trainee.fullName}
+              className="w-16 h-16 rounded-xl object-cover shrink-0 group-hover:scale-105 transition-transform duration-300"
+              onError={() => setIsError(true)}
+            />
+          ) : (
+            <div className="w-16 h-16 flex items-center justify-center bg-gray-50 rounded-xl shrink-0">
+              <UserCircle className="w-10 h-10 text-gray-300" />
+            </div>
+          )}
 
-        <h3 className="text-xl font-semibold text-gray-900 group-hover:text-primary-600 transition-colors">
-          {trainee.fullName}
-        </h3>
-        <Badge
-          variant="outline"
-          className="border-primary-400 text-primary-700 bg-primary-50"
-        >
-          {trainee.status}
-        </Badge>
-        <p className="text-sm text-gray-600 leading-tight">
-          {trainee.university} <br /> {trainee.major}
-        </p>
+          <div className="flex-1 min-w-0">
+            <h3 className="text-lg font-medium text-gray-900 mb-1 truncate group-hover:text-primary-600 transition-colors">
+              {formatName(trainee.fullName)}
+            </h3>
+            <Badge
+              variant="outline"
+              className={`text-xs ${getStatusBadgeClass(trainee.status)}`}
+            >
+              {trainee.status}
+            </Badge>
+          </div>
+        </div>
 
+        {/* Education Info */}
+        <div className="mb-4 pb-4 border-b border-gray-100">
+          <p className="text-sm text-gray-600 line-clamp-2">
+            {trainee.university}
+          </p>
+          <p className="text-xs text-gray-500 mt-1">{trainee.major}</p>
+        </div>
+
+        {/* Industries */}
         {trainee.preferredIndustry && (
-          <div className="text-xs bg-gray-100 px-3 py-1 rounded-full font-medium text-gray-700">
-            {trainee.preferredIndustry}
+          <div className="mb-3">
+            <p className="text-xs font-medium text-gray-500 mb-2">Industry</p>
+            <div className="flex flex-wrap gap-1.5">
+              {trainee.preferredIndustry
+                .split(/\s*,\s*/)
+                .filter(Boolean)
+                .slice(0, 3)
+                .map((ind) => (
+                  <Badge
+                    key={ind}
+                    variant="outline"
+                    className="text-xs border-gray-200 text-gray-600 bg-gray-50"
+                  >
+                    {ind}
+                  </Badge>
+                ))}
+            </div>
           </div>
         )}
 
+        {/* Tech Stack */}
         {trainee.techStack && (
-          <div className="flex flex-wrap justify-center gap-2 mt-2">
-            {trainee.techStack
-              .split(",")
-              .slice(0, 3)
-              .map((tech) => (
-                <Badge key={tech.trim()} variant="secondary">
-                  {tech.trim()}
-                </Badge>
-              ))}
+          <div className="mb-4">
+            <p className="text-xs font-medium text-gray-500 mb-2">Skills</p>
+            <div className="flex flex-wrap gap-1.5">
+              {trainee.techStack
+                .split(",")
+                .slice(0, 4)
+                .map((tech) => (
+                  <Badge
+                    key={tech.trim()}
+                    variant="secondary"
+                    className="text-xs"
+                  >
+                    {tech.trim()}
+                  </Badge>
+                ))}
+            </div>
           </div>
         )}
 
+        {/* CTA Button */}
         <Button
           variant="default"
-          className="mt-4 w-full bg-primary hover:bg-primary/90 text-primary-foreground"
+          className="w-full bg-primary hover:bg-primary/90 text-primary-foreground h-9 text-sm font-medium"
           onClick={onClick}
         >
-          View Profile
+          View Full Profile
         </Button>
       </div>
     </Card>
   );
 };
-
 export default TraineePage;

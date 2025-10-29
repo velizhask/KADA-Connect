@@ -1,4 +1,4 @@
-export const API_BASE_URL = "http://localhost:3001/api";
+export const API_BASE_URL = `https://kada-connect-backend.fly.dev/api`;
 
 export const API_PATHS = {
   COMPANIES: {
@@ -47,5 +47,7 @@ export const API_PATHS = {
     POPULAR_TECH_SKILLS: `${API_BASE_URL}/popular/tech-skills`,
     CACHE_CLEAR: `${API_BASE_URL}/cache/clear`,
     CACHE_STATUS: `${API_BASE_URL}/cache/status`,
+    UNIVERSITIES: `${API_BASE_URL}/universities`,
+    MAJORS: `${API_BASE_URL}/majors`,
   },
 };
