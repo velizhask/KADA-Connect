@@ -14,6 +14,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { LoadingSpinner } from "@/components/common/LoadingSpinner";
 
 interface Company {
   id: number;
@@ -112,7 +113,7 @@ const CompanyPage = () => {
 
   return (
     <MainLayout>
-      <div className="container px-4 py-8 md:px-6">
+     <div className="w-full max-w-7xl mx-auto px-4 md:px-6 py-8">
         {/* Header */}
         <div className="mb-8">
           <h1 className="mb-3 text-3xl font-bold md:text-4xl">
@@ -158,7 +159,7 @@ const CompanyPage = () => {
                   setSearchTerm(e.target.value);
                   setPagination((prev) => ({ ...prev, page: 1 }));
                 }}
-                placeholder="Search company name..."
+                placeholder="Search company...."
                 className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition"
               />
             </div>
@@ -260,11 +261,8 @@ const CompanyPage = () => {
             </div>
           )}
 
-          {loading && (
-            <div className="py-24 text-center text-muted-foreground">
-              Loading companies...
-            </div>
-          )}
+          {loading && <LoadingSpinner text="Loading companies..." />}
+
 
           {error && (
             <div className="py-24 text-center text-red-500">{error}</div>
@@ -275,138 +273,92 @@ const CompanyPage = () => {
   );
 };
 
-// Company Logo with fallback (Building2 icon)
-const CompanyLogo = ({ logo, name }: { logo?: string; name: string }) => {
-  const [isError, setIsError] = useState(false);
 
-  // Helper: format Google Drive link jadi direct-view URL
-  const getGoogleDriveImageUrl = (url: string) => {
-    if (!url) return "";
-
-    // Trim whitespace
-    url = url.trim();
-
-    // Pattern 1: Jika hanya ID murni (25+ karakter, alphanumeric + dash/underscore)
-    if (/^[\w-]{25,}$/.test(url)) {
-      return `https://drive.google.com/uc?export=view&id=${url}`;
-    }
-
-    // Pattern 2: URL dengan 'id=' (contoh: ?id=FILE_ID atau &id=FILE_ID)
-    const idMatch = url.match(/[?&]id=([\w-]+)/);
-    if (idMatch?.[1]) {
-      return `https://drive.google.com/uc?export=view&id=${idMatch[1]}`;
-    }
-
-    // Pattern 3: URL dengan '/d/FILE_ID' atau '/file/d/FILE_ID'
-    const dMatch = url.match(/\/d\/([\w-]+)/);
-    if (dMatch?.[1]) {
-      return `https://drive.google.com/uc?export=view&id=${dMatch[1]}`;
-    }
-
-    // Pattern 4: Jika sudah format uc?export=view, biarkan
-    if (url.includes('uc?export=view')) {
-      return url;
-    }
-
-    // Kalau bukan dari Drive atau format tidak dikenal, biarkan aslinya
-    return url.startsWith("http") ? url : "";
-  };
-
-  const finalLogoUrl = logo ? getGoogleDriveImageUrl(logo) : null;
-
-  console.log("🟢 Original:", logo);
-  console.log("✅ Final logo URL:", finalLogoUrl);
-
-  // Fallback icon jika gagal load
-  if (!finalLogoUrl || isError) {
-    return (
-      <div className="w-20 h-20 flex items-center justify-center bg-gray-100 rounded-md text-gray-400 mb-3">
-        <Building2 className="h-10 w-10" />
-      </div>
-    );
-  }
-
-  return (
-    <img
-      src={finalLogoUrl}
-      alt={name}
-      loading="lazy"
-      crossOrigin="anonymous"
-      className="w-20 h-20 object-contain rounded-md mb-3 group-hover:scale-105 transition-transform duration-300"
-      onError={() => {
-        console.warn(`❌ Failed to load image for ${name}:`, finalLogoUrl);
-        setIsError(true);
-      }}
-    />
-  );
-};
 
 // Company Card
 const CompanyCard = ({ company }: { company: Company }) => {
+  const [isError, setIsError] = useState(false);
   const hasTechRoles = company.techRoles && company.techRoles.trim() !== "";
   const hasSkills =
     company.preferredSkillsets && company.preferredSkillsets.trim() !== "";
 
   const handleWebsiteClick = (url?: string) => {
     if (!url || !url.startsWith("http")) {
-      toast.warning("This company doesn’t have a valid website link.");
+      toast.warning("This company doesn't have a valid website link.");
       return;
     }
     window.open(url, "_blank", "noopener,noreferrer");
   };
 
   return (
-    <Card className="group relative overflow-hidden border border-gray-100 bg-white hover:border-primary-200 hover:shadow-md transition-all duration-300 rounded-2xl">
-      <div className="p-6 flex flex-col h-full">
-        {/* Logo + Name + Industry */}
-        <div className="flex flex-col items-center text-center mb-4">
-          <CompanyLogo logo={company.logo} name={company.companyName} />
-
-          <h3 className="text-lg font-semibold text-gray-900 mb-1 group-hover:text-primary-600 transition-colors">
-            {company.companyName}
-          </h3>
-          {company.industry && (
-            <div className="flex flex-wrap justify-center gap-2">
-              {company.industry
-                .split(",")
-                .map((ind) => ind.trim())
-                .filter((i) => i.length > 0)
-                .map((ind) => (
-                  <Badge
-                    key={ind}
-                    variant="outline"
-                    className="text-xs border-primary-300 text-primary-700 bg-primary-50"
-                  >
-                    {ind}
-                  </Badge>
-                ))}
+    <Card className="group relative overflow-hidden border-0 bg-white hover:shadow-lg transition-all duration-300 rounded-xl shadow-sm">
+      <div className="p-5 flex flex-col h-full">
+        {/* Header: Logo + Name + Industry */}
+        <div className="flex items-start gap-4 mb-4">
+          {company.logo && !isError ? (
+            <img
+              src={company.logo}
+              alt={company.companyName}
+              className="w-16 h-16 rounded-xl object-cover shrink-0 group-hover:scale-105 transition-transform duration-300"
+              onError={() => setIsError(true)}
+            />
+          ) : (
+            <div className="w-16 h-16 flex items-center justify-center bg-gray-50 rounded-xl shrink-0">
+              <Building2 className="w-10 h-10 text-gray-300" />
             </div>
           )}
+          
+          <div className="flex-1 min-w-0">
+            <h3 className="text-lg font-medium text-gray-900 mb-1 truncate group-hover:text-primary-600 transition-colors">
+              {company.companyName}
+            </h3>
+            {company.industry && (
+              <div className="flex flex-wrap gap-1.5">
+                {company.industry
+                  .split(",")
+                  .map((ind) => ind.trim())
+                  .filter((i) => i.length > 0)
+                  .slice(0, 2)
+                  .map((ind) => (
+                    <Badge
+                      key={ind}
+                      variant="outline"
+                      className="text-xs border-primary-200 text-primary-700 bg-primary-50"
+                    >
+                      {ind}
+                    </Badge>
+                  ))}
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Summary */}
         {company.companySummary && (
-          <p className="text-sm text-gray-600 mb-4 line-clamp-3 text-center">
-            {company.companySummary}
-          </p>
+          <div className="mb-4 pb-4 border-b border-gray-100">
+            <p className="text-sm text-gray-600 line-clamp-2">
+              {company.companySummary}
+            </p>
+          </div>
         )}
 
         {/* Tech Roles */}
         {hasTechRoles && (
-          <div className="mb-4">
-            <h4 className="text-sm font-semibold mb-1 text-gray-800 text-center">
-              Tech Roles Needed
-            </h4>
-            <div className="flex flex-wrap gap-2 justify-center">
+          <div className="mb-3">
+            <p className="text-xs font-medium text-gray-500 mb-2">
+              Interested Tech Roles
+            </p>
+            <div className="flex flex-wrap gap-1.5">
               {company.techRoles
                 ?.split(",")
                 .map((role) => role.trim())
                 .filter((r) => r.length > 0)
+                .slice(0, 4)
                 .map((role) => (
                   <Badge
                     key={role}
                     variant="secondary"
-                    className="text-xs bg-gray-50 border-gray-200 text-gray-700"
+                    className="text-xs"
                   >
                     {role}
                   </Badge>
@@ -418,19 +370,20 @@ const CompanyCard = ({ company }: { company: Company }) => {
         {/* Preferred Skillsets */}
         {hasSkills && (
           <div className="mb-4">
-            <h4 className="text-sm font-semibold mb-1 text-gray-800 text-center">
-              Preferred Skillsets
-            </h4>
-            <div className="flex flex-wrap gap-2 justify-center">
+            <p className="text-xs font-medium text-gray-500 mb-2">
+              Preferred Skills
+            </p>
+            <div className="flex flex-wrap gap-1.5">
               {company.preferredSkillsets
                 ?.split(",")
                 .map((skill) => skill.trim())
                 .filter((s) => s.length > 0)
+                .slice(0, 5)
                 .map((skill) => (
                   <Badge
                     key={skill}
                     variant="outline"
-                    className="text-xs border-gray-200 text-gray-700"
+                    className="text-xs border-gray-200 text-gray-600 bg-gray-50"
                   >
                     {skill}
                   </Badge>
@@ -441,31 +394,34 @@ const CompanyCard = ({ company }: { company: Company }) => {
 
         {/* Contact Info */}
         {company.contactInfoVisible && (
-          <div className="mt-auto mb-4 text-xs text-gray-500 text-center space-y-1">
-            {company.contactPerson && (
-              <p className="font-medium text-gray-700">
-                {company.contactPerson}
-              </p>
-            )}
-            {company.contactEmail && (
-              <div className="flex items-center justify-center gap-1">
-                <Mail className="h-3 w-3" />
-                <span>{company.contactEmail}</span>
-              </div>
-            )}
-            {company.contactPhone && (
-              <div className="flex items-center justify-center gap-1">
-                <Phone className="h-3 w-3" />
-                <span>{company.contactPhone}</span>
-              </div>
-            )}
+          <div className="mt-auto mb-4 p-3 bg-gray-50 rounded-lg">
+            <p className="text-xs font-medium text-gray-500 mb-2">Contact</p>
+            <div className="space-y-1.5">
+              {company.contactPerson && (
+                <p className="text-sm font-medium text-gray-700">
+                  {company.contactPerson}
+                </p>
+              )}
+              {company.contactEmail && (
+                <div className="flex items-center gap-2 text-xs text-gray-600">
+                  <Mail className="h-3.5 w-3.5 shrink-0" />
+                  <span className="truncate">{company.contactEmail}</span>
+                </div>
+              )}
+              {company.contactPhone && (
+                <div className="flex items-center gap-2 text-xs text-gray-600">
+                  <Phone className="h-3.5 w-3.5 shrink-0" />
+                  <span>{company.contactPhone}</span>
+                </div>
+              )}
+            </div>
           </div>
         )}
 
-        {/* Website Link */}
+        {/* CTA Button */}
         <Button
           variant="default"
-          className="w-full mt-auto bg-primary hover:bg-primary/90 text-white"
+          className="w-full mt-auto bg-primary hover:bg-primary/90 text-white h-9 text-sm font-medium"
           onClick={() => handleWebsiteClick(company.website)}
         >
           Visit Website

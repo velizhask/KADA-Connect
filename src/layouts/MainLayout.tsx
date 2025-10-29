@@ -17,7 +17,7 @@ const MainLayout = ({ children, isFullWidth = false }: LayoutProps) => {
         {isFullWidth ? (
           <div className="w-full flex-1">{children}</div>
         ) : (
-          <div className="w-full max-w-7xl mx-auto px-4 md:px-6 py-8 flex-1">
+          <div className="w-full max-w-7xl mx-auto px-4 md:px-6 py-8 flex-1 align-content-center">
             {children}
           </div>
         )}

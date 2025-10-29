@@ -36,4 +36,10 @@ export const lookupServices = {
 
   // Get current cache status (hit rate, TTL, etc.)
   getCacheStatus: () => axiosInstance.get(API_PATHS.LOOKUP.CACHE_STATUS),
+
+  // Get all University
+  getUniversities: () => axiosInstance.get(API_PATHS.LOOKUP.UNIVERSITIES),
+
+  // Get all Majors
+  getMajors: () => axiosInstance.get(API_PATHS.LOOKUP.MAJORS),
 };
