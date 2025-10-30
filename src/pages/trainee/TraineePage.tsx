@@ -28,7 +28,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { LoadingSpinner } from "@/components/common/LoadingSpinner";
-import { getImageProps, getImageUrl } from "@/utils/imageHelper";
+import { getImageUrl } from "@/utils/imageHelper";
 import { useDebounce } from "@/hooks/useDebounce";
 import { getStatusBadgeClass } from "@/utils/statusBadgeHelper";
 
@@ -69,6 +69,9 @@ const TraineePage = () => {
   const [majors, setMajors] = useState<string[]>([]);
   const [statuses] = useState<string[]>(["Current Trainee", "Alumni"]);
 
+  const [traineeImages, setTraineeImages] = useState<Record<number, string>>(
+    {}
+  );
   const [searchTerm, setSearchTerm] = useState("");
   const debouncedSearch = useDebounce(searchTerm, 500);
   const [selectedStatus, setSelectedStatus] = useState("all");
@@ -179,13 +182,15 @@ const TraineePage = () => {
       const fetchedData = res.data?.data || [];
       const fetchedPagination = res.data?.pagination || {};
 
-      const normalizedData = fetchedData.map((t: any) => ({
+      // 🔹 SIMPAN DATA DULU TANPA GAMBAR
+      const traineesWithoutImages = fetchedData.map((t: any) => ({
         ...t,
-        profilePhoto: getImageUrl(t.profilePhoto),
+        profilePhoto: undefined, // kosong dulu, nanti diisi async
       }));
 
-      setTrainees(normalizedData);
+      setTrainees(traineesWithoutImages);
 
+      // 🔹 SET PAGINATION
       setPagination({
         ...pagination,
         page: fetchedPagination.page ?? 1,
@@ -198,6 +203,9 @@ const TraineePage = () => {
               (fetchedPagination.limit ?? 12)
           ),
       });
+
+      // 🔹 Mulai load gambar di background TANPA nge-block render
+      queueMicrotask(() => loadProfilePhotosAsync(fetchedData));
 
       setError(null);
     } catch (err) {
@@ -317,6 +325,26 @@ const TraineePage = () => {
     });
   };
 
+  const loadProfilePhotosAsync = async (fetchedData: any[]) => {
+    const newImages: Record<number, string> = {};
+
+    for (const t of fetchedData) {
+      if (
+        typeof t.profilePhoto === "string" &&
+        t.profilePhoto.startsWith("data:image")
+      ) {
+        newImages[t.id] = t.profilePhoto;
+      } else if (t.profilePhoto) {
+        const url = getImageUrl(t.profilePhoto);
+        if (url) newImages[t.id] = url;
+      }
+    }
+
+    setTimeout(() => {
+      setTraineeImages((prev) => ({ ...prev, ...newImages }));
+    }, 10);
+  };
+
   return (
     <MainLayout>
       <div className="w-full max-w-7xl mx-auto px-3 sm:px-4 md:px-6 py-6 sm:py-8">
@@ -421,6 +449,7 @@ const TraineePage = () => {
                     key={t.id}
                     trainee={t}
                     onClick={() => setSelectedTrainee(t)}
+                    image={traineeImages[t.id]}
                   />
                 ))}
               </div>
@@ -503,16 +532,21 @@ const TraineePage = () => {
           open={!!selectedTrainee}
           onOpenChange={() => setSelectedTrainee(null)}
         >
-          <DialogContent className="max-w-2xl w-[90vw] md:w-[700px] max-h-[85vh] overflow-y-auto rounded-2xl">
+          <DialogContent className="max-w-2xl w-[90vw] md:w-[700px] max-h-[85vh] overflow-y-auto rounded-2xl animate-in fade-in duration-300">
             {selectedTrainee && (
               <>
                 {/* Header Section */}
                 <DialogHeader className="pb-4">
                   <div className="flex flex-col sm:flex-row items-center sm:items-start text-center sm:text-left gap-4">
                     <ProfileImage
-                      imageUrl={selectedTrainee.profilePhoto}
-                      alt={selectedTrainee.fullName}
+                      imageUrl={
+                        traineeImages[selectedTrainee.id] ||
+                        selectedTrainee.profilePhoto ||
+                        ""
+                      }
+                      alt={selectedTrainee.fullName || "Unknown Trainee"}
                     />
+
                     <div className="flex flex-col">
                       <DialogTitle className="text-2xl font-medium">
                         {selectedTrainee.fullName}
@@ -631,11 +665,29 @@ const ProfileImage = ({
   imageUrl?: string;
   alt: string;
 }) => {
-  const imageProps = getImageProps(imageUrl, "profile");
+  const [finalSrc, setFinalSrc] = useState<string | null>(null);
+  const [isLoaded, setIsLoaded] = useState(false);
   const [isError, setIsError] = useState(false);
-  const finalUrl = getImageProps(imageUrl);
 
-  if (!finalUrl || isError) {
+  useEffect(() => {
+    if (!imageUrl) {
+      setFinalSrc(null);
+      return;
+    }
+
+    // Jalankan async tapi biarkan dialog render dulu
+    const timeout = setTimeout(() => {
+      const isBase64 =
+        typeof imageUrl === "string" && imageUrl.startsWith("data:image");
+      const resolvedUrl = isBase64 ? imageUrl : getImageUrl(imageUrl);
+      setFinalSrc(resolvedUrl || null);
+    }, 50); // delay kecil biar UI muncul dulu
+
+    return () => clearTimeout(timeout);
+  }, [imageUrl]);
+
+  // fallback jika error
+  if (!finalSrc || isError) {
     return (
       <div className="w-24 h-24 flex items-center justify-center bg-gray-50 rounded-xl shrink-0">
         <UserCircle className="w-16 h-16 text-gray-300" />
@@ -644,13 +696,21 @@ const ProfileImage = ({
   }
 
   return (
-    <img
-      {...imageProps}
-      alt={alt}
-      className="w-36 h-36 rounded-xl object-cover shrink-0 group-hover:scale-105 transition-transform duration-300"
-      onError={() => setIsError(true)}
-      loading="lazy"
-    />
+    <div className="relative">
+      {!isLoaded && (
+        <div className="absolute inset-0 bg-gray-100 animate-pulse rounded-xl" />
+      )}
+      <img
+        src={finalSrc}
+        alt={alt}
+        onLoad={() => setIsLoaded(true)}
+        onError={() => setIsError(true)}
+        loading="lazy"
+        className={`w-36 h-36 rounded-xl object-cover shrink-0 transition-opacity duration-700 ease-out ${
+          isLoaded ? "opacity-100" : "opacity-0"
+        }`}
+      />
+    </div>
   );
 };
 
@@ -693,12 +753,22 @@ const FilterSelect = ({ label, value, onChange, items }: any) => (
 const TraineeCard = ({
   trainee,
   onClick,
+  image,
 }: {
   trainee: Trainee;
   onClick: () => void;
+  image?: string;
 }) => {
   const [isError, setIsError] = useState(false);
-  const photoUrl = trainee.profilePhoto;
+  const [loaded, setLoaded] = useState(false);
+
+  // Ambil dari async image prop dulu (base64 yang baru muncul)
+  // fallback ke trainee.profilePhoto (URL biasa / proxy)
+  const photoUrl =
+    image ||
+    (trainee.profilePhoto?.startsWith("data:image")
+      ? undefined
+      : getImageUrl(trainee.profilePhoto));
 
   const formatName = (name: string) =>
     name
@@ -713,19 +783,29 @@ const TraineeCard = ({
         {/* Header Section */}
         <div className="flex flex-col sm:flex-row items-center sm:items-start sm:gap-4 gap-3 mb-4">
           {/* Foto */}
-          {photoUrl && !isError ? (
-            <img
-              src={photoUrl}
-              alt={trainee.fullName}
-              className="w-40 h-40 sm:w-16 sm:h-16 rounded-2xl object-cover group-hover:scale-105 transition-transform duration-300"
-              onError={() => setIsError(true)}
-              loading="lazy"
-            />
-          ) : (
-            <div className="w-24 h-24 sm:w-16 sm:h-16 flex items-center justify-center bg-gray-50 rounded-2xl">
-              <UserCircle className="w-12 h-12 sm:w-10 sm:h-10 text-gray-300" />
-            </div>
-          )}
+          <div className="relative w-24 h-24 sm:w-16 sm:h-16 flex items-center justify-center bg-gray-50 rounded-2xl overflow-hidden">
+            {/* Skeleton shimmer tampil dulu */}
+            {!loaded && (
+              <div className="absolute inset-0 bg-gray-100 animate-pulse rounded-2xl" />
+            )}
+
+            {/* Kalau ada image, load async */}
+            {photoUrl && !isError ? (
+              <img
+                src={photoUrl}
+                alt={trainee.fullName}
+                onLoad={() => setLoaded(true)}
+                onError={() => setIsError(true)}
+                loading="lazy"
+                className={`w-full h-full object-cover transition-opacity duration-700 ${
+                  loaded ? "opacity-100" : "opacity-0"
+                }`}
+              />
+            ) : (
+              // Kalau gagal load, icon muncul tapi card tetap tampil
+              <UserCircle className="w-10 h-10 text-gray-300" />
+            )}
+          </div>
 
           {/* Nama dan Status */}
           <div className="flex flex-col items-center sm:items-start text-center sm:text-left mt-2 sm:mt-0">
