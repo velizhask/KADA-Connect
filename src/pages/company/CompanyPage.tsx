@@ -3,7 +3,13 @@ import MainLayout from "@/layouts/MainLayout";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ExternalLink, Filter, Mail, Phone, Building2 } from "lucide-react";
+import {
+  ExternalLink,
+  Filter,
+  Building2,
+  ChevronLeft,
+  ChevronRight,
+} from "lucide-react";
 import { lookupServices } from "@/services/lookupServices";
 import { companyServices } from "@/services/companyServices";
 import { toast } from "sonner";
@@ -15,6 +21,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { LoadingSpinner } from "@/components/common/LoadingSpinner";
+import { getImageProps, getImageUrl } from "@/utils/imageHelper";
+import { useDebounce } from "@/hooks/useDebounce";
 
 interface Company {
   id: number;
@@ -48,14 +56,15 @@ const CompanyPage = () => {
     total: 0,
     totalPages: 1,
   });
+
+  const [searchTerm, setSearchTerm] = useState("");
+  const debouncedSearch = useDebounce(searchTerm, 500);
+  const [selectedIndustry, setSelectedIndustry] = useState("all");
+  const [selectedTechRole, setSelectedTechRole] = useState("all");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const [searchTerm, setSearchTerm] = useState("");
-  const [selectedIndustry, setSelectedIndustry] = useState("all");
-  const [selectedTechRole, setSelectedTechRole] = useState("all");
-
-  // 🔹 Load lookup data (industries & tech roles)
+  // Fetch Lookup Data
   useEffect(() => {
     const fetchLookups = async () => {
       try {
@@ -72,11 +81,10 @@ const CompanyPage = () => {
     fetchLookups();
   }, []);
 
-  // 🔹 Fetch companies (with filters + search)
+  // Fetch Companies
   useEffect(() => {
     fetchCompanies(pagination.page);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchTerm, selectedIndustry, selectedTechRole, pagination.page]);
+  }, [debouncedSearch, selectedIndustry, selectedTechRole, pagination.page]);
 
   const fetchCompanies = async (page: number) => {
     try {
@@ -88,17 +96,35 @@ const CompanyPage = () => {
         ...(selectedTechRole !== "all" && { techRole: selectedTechRole }),
       };
 
-      const isSearching = searchTerm.trim().length > 0;
+      const res =
+        searchTerm.trim().length > 0
+          ? await companyServices.searchCompanies(searchTerm, filters)
+          : await companyServices.getCompanies(filters);
 
-      const res = isSearching
-        ? await companyServices.searchCompanies(searchTerm, filters)
-        : await companyServices.getCompanies(filters);
+      const fetchedData = res.data?.data || [];
+      const fetchedPagination = res.data?.pagination || {};
 
-      setCompanies(res.data?.data || []);
-      setPagination(res.data?.pagination || pagination);
+      const normalizedData = fetchedData.map((c: any) => ({
+        ...c,
+        logo: getImageUrl(c.logo),
+      }));
+
+      setCompanies(normalizedData);
+      setPagination({
+        page: fetchedPagination.page ?? 1,
+        limit: fetchedPagination.limit ?? 9,
+        total: fetchedPagination.total ?? fetchedData.length,
+        totalPages:
+          fetchedPagination.totalPages ??
+          Math.ceil(
+            (fetchedPagination.total ?? fetchedData.length) /
+              (fetchedPagination.limit ?? 9)
+          ),
+      });
+
       setError(null);
     } catch (err) {
-      console.error("Fetch error:", err);
+      console.error("Fetch companies error:", err);
       setError("Oops! Something went wrong while loading the page.");
     } finally {
       setLoading(false);
@@ -111,30 +137,50 @@ const CompanyPage = () => {
     }
   };
 
+  useEffect(() => {
+    setPagination((prev) => ({ ...prev, page: 1 }));
+  }, [searchTerm, selectedIndustry, selectedTechRole]);
+
+  const getPageNumbers = () => {
+    const current = pagination.page;
+    const total = pagination.totalPages;
+    const isMobile = typeof window !== "undefined" && window.innerWidth < 640;
+    return Array.from({ length: total }, (_, i) => i + 1).filter((pageNum) => {
+      if (isMobile) {
+        return pageNum === 1 || pageNum === total || pageNum === current;
+      }
+      return (
+        pageNum === 1 ||
+        pageNum === total ||
+        (pageNum >= current - 1 && pageNum <= current + 1)
+      );
+    });
+  };
+
   return (
     <MainLayout>
-     <div className="w-full max-w-7xl mx-auto px-4 md:px-6 py-8">
+      <div className="w-full max-w-7xl mx-auto px-3 sm:px-4 md:px-6 py-6 sm:py-8">
         {/* Header */}
-        <div className="mb-8">
-          <h1 className="mb-3 text-3xl font-bold md:text-4xl">
+        <div className="mb-6 sm:mb-8">
+          <h1 className="mb-2 sm:mb-3 text-2xl sm:text-3xl md:text-4xl font-medium">
             Visiting Companies
           </h1>
-          <p className="text-lg text-muted-foreground">
+          <p className="text-sm sm:text-base md:text-lg text-muted-foreground">
             Explore companies participating in the Industry Visit event.
           </p>
         </div>
 
-        {/* Filters */}
-        <Card className="mb-8 p-6 shadow-sm border border-gray-100">
-          <div className="mb-6 flex items-center justify-between flex-wrap gap-2">
-            <div className="flex items-center gap-2 text-gray-700 font-semibold text-base">
+        {/* Filter Section */}
+        <Card className="mb-6 sm:mb-8 p-4 sm:p-6 shadow-sm border border-gray-100 rounded-2xl">
+          <div className="mb-4 sm:mb-6 flex items-center justify-between flex-wrap gap-2">
+            <div className="flex items-center gap-2 text-gray-700 font-medium text-sm sm:text-base">
               <Filter className="h-4 w-4 text-primary-600" />
               <span>Filter Companies</span>
             </div>
             <Button
               variant="outline"
               size="sm"
-              className="border-gray-300 text-gray-700 hover:bg-gray-50"
+              className="border-gray-300 text-gray-700 hover:bg-gray-50 text-xs sm:text-sm h-8 sm:h-9"
               onClick={() => {
                 setSearchTerm("");
                 setSelectedIndustry("all");
@@ -146,75 +192,26 @@ const CompanyPage = () => {
             </Button>
           </div>
 
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {/* Search */}
-            <div>
-              <label className="mb-2 block text-sm font-medium text-gray-700">
-                Search
-              </label>
-              <input
-                type="text"
-                value={searchTerm}
-                onChange={(e) => {
-                  setSearchTerm(e.target.value);
-                  setPagination((prev) => ({ ...prev, page: 1 }));
-                }}
-                placeholder="Search company...."
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition"
-              />
-            </div>
-
-            {/* Industry */}
-            <div>
-              <label className="mb-2 block text-sm font-medium text-gray-700">
-                Industry
-              </label>
-              <Select
-                value={selectedIndustry}
-                onValueChange={(val) => {
-                  setSelectedIndustry(val);
-                  setPagination((prev) => ({ ...prev, page: 1 }));
-                }}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="All Industries" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Industries</SelectItem>
-                  {industries.map((industry) => (
-                    <SelectItem key={industry} value={industry}>
-                      {industry}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Tech Role */}
-            <div>
-              <label className="mb-2 block text-sm font-medium text-gray-700">
-                Tech Role Interest
-              </label>
-              <Select
-                value={selectedTechRole}
-                onValueChange={(val) => {
-                  setSelectedTechRole(val);
-                  setPagination((prev) => ({ ...prev, page: 1 }));
-                }}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="All Roles" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Roles</SelectItem>
-                  {techRoles.map((role) => (
-                    <SelectItem key={role} value={role}>
-                      {role}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+          {/* Inputs */}
+          <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+            <FilterInput
+              label="Search"
+              value={searchTerm}
+              onChange={setSearchTerm}
+              placeholder="Type company name or keyword..."
+            />
+            <FilterSelect
+              label="Industry"
+              value={selectedIndustry}
+              onChange={setSelectedIndustry}
+              items={industries}
+            />
+            <FilterSelect
+              label="Tech Role Interest"
+              value={selectedTechRole}
+              onChange={setSelectedTechRole}
+              items={techRoles}
+            />
           </div>
         </Card>
 
@@ -222,52 +219,58 @@ const CompanyPage = () => {
         <div className="flex-1 transition-all duration-300">
           {!loading && !error && companies.length > 0 && (
             <>
-              <div className="mb-4 text-sm text-muted-foreground">
-                Showing {companies.length} of {pagination.total} companies —
-                Page {pagination.page} of {pagination.totalPages}
+              <div className="mb-4 text-xs sm:text-sm text-muted-foreground px-1">
+                <span className="hidden sm:inline">
+                  Showing {(pagination.page - 1) * pagination.limit + 1}–
+                  {Math.min(
+                    pagination.page * pagination.limit,
+                    pagination.total
+                  )}{" "}
+                  of {pagination.total} companies — Page {pagination.page} of{" "}
+                  {pagination.totalPages}
+                </span>
+                <span className="sm:hidden">
+                  Page {pagination.page} of {pagination.totalPages} (
+                  {pagination.total} total)
+                </span>
               </div>
-              <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+
+              <div className="grid gap-4 sm:gap-5 md:gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
                 {companies.map((company) => (
                   <CompanyCard key={company.id} company={company} />
                 ))}
               </div>
 
               {/* Pagination */}
-              <div className="flex items-center justify-between mt-8 gap-4 flex-wrap">
-                <Button
-                  variant="outline"
-                  disabled={pagination.page <= 1}
-                  onClick={() => handlePageChange(pagination.page - 1)}
-                  className="min-w-[100px]"
-                >
-                  Previous
-                </Button>
-                
-                <div className="flex items-center gap-2">
-                  {Array.from({ length: pagination.totalPages }, (_, i) => i + 1)
-                    .filter((pageNum) => {
-                      const current = pagination.page;
-                      return (
-                        pageNum === 1 ||
-                        pageNum === pagination.totalPages ||
-                        (pageNum >= current - 1 && pageNum <= current + 1)
-                      );
-                    })
-                    .map((pageNum, index, array) => {
+              <div className="w-full mt-6 sm:mt-8 px-2 sm:px-0">
+                <div className="flex items-center justify-center gap-2 sm:gap-3">
+                  <Button
+                    variant="outline"
+                    disabled={pagination.page <= 1}
+                    onClick={() => handlePageChange(pagination.page - 1)}
+                    className="flex items-center justify-center gap-1 sm:gap-2 h-9 sm:h-10 px-2 sm:px-4 cursor-pointer text-xs sm:text-sm"
+                  >
+                    <ChevronLeft className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                    <span className="hidden xs:inline sm:inline">Prev</span>
+                  </Button>
+
+                  <div className="flex items-center justify-center gap-1 sm:gap-2">
+                    {getPageNumbers().map((pageNum, index, array) => {
                       const prevPage = array[index - 1];
                       const showEllipsis = prevPage && pageNum - prevPage > 1;
-                      
                       return (
-                        <div key={pageNum} className="flex items-center gap-2">
+                        <div key={pageNum} className="flex items-center gap-1">
                           {showEllipsis && (
-                            <span className="text-gray-400 px-1">•••</span>
+                            <span className="text-gray-400 text-xs sm:text-sm">
+                              •••
+                            </span>
                           )}
                           <button
                             onClick={() => handlePageChange(pageNum)}
-                            className={`w-10 h-10 rounded-lg text-sm font-medium transition-all duration-200 ${
+                            className={`cursor-pointer w-8 h-8 sm:w-9 sm:h-9 md:w-10 md:h-10 rounded-lg text-xs sm:text-sm font-medium transition-all duration-200 ${
                               pagination.page === pageNum
-                                ? "bg-primary text-white shadow-sm"
-                                : "bg-white border border-gray-200 text-gray-700 hover:border-primary-300 hover:bg-primary-50"
+                                ? "bg-primary text-white shadow-sm cursor-pointer"
+                                : "bg-white border border-gray-200 cursor-pointer text-gray-700 hover:border-primary-300 hover:bg-primary-50 active:scale-95"
                             }`}
                           >
                             {pageNum}
@@ -275,16 +278,18 @@ const CompanyPage = () => {
                         </div>
                       );
                     })}
-                </div>
+                  </div>
 
-                <Button
-                  variant="outline"
-                  disabled={pagination.page >= pagination.totalPages}
-                  onClick={() => handlePageChange(pagination.page + 1)}
-                  className="min-w-[100px]"
-                >
-                  Next
-                </Button>
+                  <Button
+                    variant="outline"
+                    disabled={pagination.page >= pagination.totalPages}
+                    onClick={() => handlePageChange(pagination.page + 1)}
+                    className="flex items-center justify-center gap-1 sm:gap-2 h-9 sm:h-10 px-2 sm:px-4 cursor-pointer text-xs sm:text-sm"
+                  >
+                    <span className="hidden xs:inline sm:inline">Next</span>
+                    <ChevronRight className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                  </Button>
+                </div>
               </div>
             </>
           )}
@@ -297,7 +302,6 @@ const CompanyPage = () => {
 
           {loading && <LoadingSpinner text="Loading companies..." />}
 
-
           {error && (
             <div className="py-24 text-center text-red-500">{error}</div>
           )}
@@ -307,51 +311,109 @@ const CompanyPage = () => {
   );
 };
 
+// Reusable Filter Components (Same as TraineePage)
+const FilterInput = ({ label, value, onChange, placeholder }: any) => (
+  <div>
+    <label className="mb-2 block text-xs sm:text-sm font-medium text-gray-700">
+      {label}
+    </label>
+    <input
+      type="text"
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      placeholder={placeholder}
+      className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition"
+    />
+  </div>
+);
 
+const FilterSelect = ({ label, value, onChange, items }: any) => (
+  <div>
+    <label className="mb-2 block text-xs sm:text-sm font-medium text-gray-700">
+      {label}
+    </label>
+    <Select value={value} onValueChange={onChange}>
+      <SelectTrigger className="w-full">
+        <SelectValue placeholder={`All ${label}`} />
+      </SelectTrigger>
+      <SelectContent>
+        <SelectItem value="all">All {label}</SelectItem>
+        {items.map((item: string, i: number) => (
+          <SelectItem key={i} value={item}>
+            {item}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  </div>
+);
 
-// Company Card
 const CompanyCard = ({ company }: { company: Company }) => {
   const [isError, setIsError] = useState(false);
-  const hasTechRoles = company.techRoles && company.techRoles.trim() !== "";
-  const hasSkills =
-    company.preferredSkillsets && company.preferredSkillsets.trim() !== "";
-
   const handleWebsiteClick = (url?: string) => {
-    if (!url || !url.startsWith("http")) {
+    if (
+      !url ||
+      !url.trim() ||
+      url.trim() === "-" ||
+      url.trim().toLowerCase() === "n/a"
+    ) {
       toast.warning("This company doesn't have a valid website link.");
       return;
     }
-    window.open(url, "_blank", "noopener,noreferrer");
+
+    let finalUrl = url.trim();
+
+    finalUrl = finalUrl.replace(/^(https?:\/\/)?(www\.)?(-|#)+$/i, "").trim();
+
+    if (!finalUrl || finalUrl === "-" || finalUrl.toLowerCase() === "n/a") {
+      toast.warning("This company doesn't have a valid website link.");
+      return;
+    }
+
+    if (!/^https?:\/\//i.test(finalUrl)) {
+      finalUrl = `https://${finalUrl}`;
+    }
+
+    if (/^https?:\/\/[-.]+$/i.test(finalUrl)) {
+      toast.warning("Invalid website link format.");
+      return;
+    }
+
+    try {
+      window.open(finalUrl, "_blank", "noopener,noreferrer");
+    } catch {
+      toast.error("Unable to open the website link.");
+    }
   };
 
   return (
-    <Card className="group relative overflow-hidden border-0 bg-white hover:shadow-lg transition-all duration-300 rounded-xl shadow-sm">
-      <div className="p-5 flex flex-col h-full">
-        {/* Header: Logo + Name + Industry */}
-        <div className="flex items-start gap-4 mb-4">
+    <Card className="group flex flex-col justify-between border-0 hover:shadow-lg transition-all duration-300 rounded-xl bg-white shadow-sm h-full">
+      <div className="p-4 sm:p-5 flex flex-col h-full">
+        <div className="flex flex-col sm:flex-row items-center sm:items-start text-center sm:text-left sm:gap-4 gap-3 mb-3 sm:mb-4">
           {company.logo && !isError ? (
             <img
-              src={company.logo}
+              {...getImageProps(company.logo, "company")}
               alt={company.companyName}
-              className="w-16 h-16 rounded-xl object-cover shrink-0 group-hover:scale-105 transition-transform duration-300"
+              className="w-24 h-24 sm:w-16 sm:h-16 rounded-xl object-cover group-hover:scale-105 transition-transform duration-300"
               onError={() => setIsError(true)}
+              loading="lazy"
             />
           ) : (
-            <div className="w-16 h-16 flex items-center justify-center bg-gray-50 rounded-xl shrink-0">
+            <div className="w-20 h-20 sm:w-16 sm:h-16 flex items-center justify-center bg-gray-50 rounded-xl">
               <Building2 className="w-10 h-10 text-gray-300" />
             </div>
           )}
-          
-          <div className="flex-1 min-w-0">
-            <h3 className="text-lg font-medium text-gray-900 mb-1 truncate group-hover:text-primary-600 transition-colors">
+
+          <div className="flex-1 mt-3 sm:mt-0">
+            <h3 className="text-base sm:text-lg font-medium text-gray-900 mb-1 line-clamp-2 group-hover:text-primary-600 transition-colors">
               {company.companyName}
             </h3>
             {company.industry && (
-              <div className="flex flex-wrap gap-1.5">
+              <div className="flex flex-wrap justify-center sm:justify-start gap-1 sm:gap-1.5">
                 {company.industry
                   .split(",")
                   .map((ind) => ind.trim())
-                  .filter((i) => i.length > 0)
+                  .filter(Boolean)
                   .slice(0, 2)
                   .map((ind) => (
                     <Badge
@@ -367,33 +429,27 @@ const CompanyCard = ({ company }: { company: Company }) => {
           </div>
         </div>
 
-        {/* Summary */}
         {company.companySummary && (
-          <div className="mb-4 pb-4 border-b border-gray-100">
-            <p className="text-sm text-gray-600 line-clamp-2">
+          <div className="mb-3 sm:mb-4 pb-3 border-b border-gray-100">
+            <p className="text-xs sm:text-sm text-gray-600 line-clamp-2">
               {company.companySummary}
             </p>
           </div>
         )}
 
-        {/* Tech Roles */}
-        {hasTechRoles && (
-          <div className="mb-3">
-            <p className="text-xs font-medium text-gray-500 mb-2">
+        {company.techRoles && (
+          <div className="mb-2.5 sm:mb-3">
+            <p className="text-xs font-medium text-gray-500 mb-1.5 sm:mb-2">
               Interested Tech Roles
             </p>
-            <div className="flex flex-wrap gap-1.5">
+            <div className="flex flex-wrap gap-1 sm:gap-1.5">
               {company.techRoles
-                ?.split(",")
-                .map((role) => role.trim())
-                .filter((r) => r.length > 0)
+                .split(",")
+                .map((r) => r.trim())
+                .filter(Boolean)
                 .slice(0, 4)
                 .map((role) => (
-                  <Badge
-                    key={role}
-                    variant="secondary"
-                    className="text-xs"
-                  >
+                  <Badge key={role} variant="secondary" className="text-xs">
                     {role}
                   </Badge>
                 ))}
@@ -401,17 +457,16 @@ const CompanyCard = ({ company }: { company: Company }) => {
           </div>
         )}
 
-        {/* Preferred Skillsets */}
-        {hasSkills && (
-          <div className="mb-4">
-            <p className="text-xs font-medium text-gray-500 mb-2">
+        {company.preferredSkillsets && (
+          <div className="mb-3 sm:mb-4">
+            <p className="text-xs font-medium text-gray-500 mb-1.5 sm:mb-2">
               Preferred Skills
             </p>
-            <div className="flex flex-wrap gap-1.5">
+            <div className="flex flex-wrap gap-1 sm:gap-1.5">
               {company.preferredSkillsets
-                ?.split(",")
-                .map((skill) => skill.trim())
-                .filter((s) => s.length > 0)
+                .split(",")
+                .map((s) => s.trim())
+                .filter(Boolean)
                 .slice(0, 5)
                 .map((skill) => (
                   <Badge
@@ -428,38 +483,70 @@ const CompanyCard = ({ company }: { company: Company }) => {
 
         {/* Contact Info */}
         {company.contactInfoVisible && (
-          <div className="mt-auto mb-4 p-3 bg-gray-50 rounded-lg">
-            <p className="text-xs font-medium text-gray-500 mb-2">Contact</p>
-            <div className="space-y-1.5">
+          <div className="mt-2 sm:mt-3 mb-3 sm:mb-4 border-t border-gray-100 pt-3">
+            <p className="text-xs font-medium text-gray-500 mb-2">
+              Contact Information
+            </p>
+            <div className="space-y-1 text-sm text-gray-700">
               {company.contactPerson && (
-                <p className="text-sm font-medium text-gray-700">
-                  {company.contactPerson}
+                <p className="flex items-center gap-2">
+                  <span className="font-medium">{company.contactPerson}</span>
                 </p>
               )}
               {company.contactEmail && (
-                <div className="flex items-center gap-2 text-xs text-gray-600">
-                  <Mail className="h-3.5 w-3.5 shrink-0" />
-                  <span className="truncate">{company.contactEmail}</span>
-                </div>
+                <p
+                  className="flex items-center gap-2 text-primary hover:underline break-all cursor-pointer"
+                  onClick={() =>
+                    window.open(`mailto:${company.contactEmail}`, "_blank")
+                  }
+                >
+                  📧 {company.contactEmail}
+                </p>
               )}
               {company.contactPhone && (
-                <div className="flex items-center gap-2 text-xs text-gray-600">
-                  <Phone className="h-3.5 w-3.5 shrink-0" />
-                  <span>{company.contactPhone}</span>
-                </div>
+                <p
+                  className="flex items-center gap-2 text-primary hover:underline cursor-pointer"
+                  onClick={() => {
+                    let phone = company.contactPhone?.trim() ?? "";
+                    if (!phone) return;
+
+                    phone = phone.replace(/[^0-9+]/g, "");
+
+                    const hasCountryCode = phone.startsWith("+");
+
+                    if (!hasCountryCode) {
+                      if (phone.startsWith("0")) {
+                        phone = "+62" + phone.slice(1);
+                      } else if (phone.startsWith("62")) {
+                        phone = "+" + phone;
+                      } else {
+                        // fallback kalau format aneh (misal 812...)
+                        phone = "+62" + phone;
+                      }
+                    }
+
+                    const waNumber = phone.replace("+", "");
+
+                    window.open(
+                      `https://wa.me/${waNumber}`,
+                      "_blank",
+                      "noopener,noreferrer"
+                    );
+                  }}
+                >
+                  📞 {company.contactPhone}
+                </p>
               )}
             </div>
           </div>
         )}
-
-        {/* CTA Button */}
         <Button
           variant="default"
-          className="w-full mt-auto bg-primary hover:bg-primary/90 text-white h-9 text-sm font-medium"
           onClick={() => handleWebsiteClick(company.website)}
+          className="w-full mt-auto inline-flex items-center justify-center gap-2 bg-primary hover:bg-primary/90 text-white h-9 text-xs sm:text-sm font-medium cursor-pointer"
         >
           Visit Website
-          <ExternalLink className="ml-2 h-4 w-4" />
+          <ExternalLink className="h-3.5 w-3.5" />
         </Button>
       </div>
     </Card>

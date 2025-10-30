@@ -1,23 +1,26 @@
 import { useEffect, useRef, useState } from "react";
-import { Link, useLocation, useNavigate } from "react-router-dom";
-import { Menu, X, Building2, GraduationCap, Home, User, LogOut } from "lucide-react";
+import { Link, useLocation } from "react-router-dom";
+import { Menu, X, Building2, GraduationCap, Home } from "lucide-react";
+import aseanlogo from "@/assets/logo/aseanlogo.png";
 
 const Navbar = () => {
   const location = useLocation();
-  const navigate = useNavigate();
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement | null>(null);
 
-  useEffect(() => {
-    const user = localStorage.getItem("user");
-    setIsLoggedIn(!!user);
-  }, []);
+  // 🔒 LOGIN FEATURE - future improvement
+  // const [isLoggedIn, setIsLoggedIn] = useState(false);
+  // const navigate = useNavigate();
 
-  const handleLogout = () => {
-    localStorage.removeItem("user");
-    navigate("/auth");
-  };
+  // useEffect(() => {
+  //   const user = localStorage.getItem("user");
+  //   setIsLoggedIn(!!user);
+  // }, []);
+
+  // const handleLogout = () => {
+  //   localStorage.removeItem("user");
+  //   navigate("/auth");
+  // };
 
   const isActive = (path: string) => location.pathname === path;
 
@@ -44,22 +47,19 @@ const Navbar = () => {
 
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-white/80 backdrop-blur-md">
-      {/* 🔹 Navbar Utama */}
       <div className="max-w-7xl mx-auto flex h-16 items-center justify-between px-4 md:px-6">
         {/* Logo */}
         <Link to="/" className="flex items-center gap-2.5 group">
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-linear-to-br from-primary to-primary/80 text-white shadow-sm group-hover:shadow-md transition-shadow">
-            <GraduationCap className="h-5 w-5" />
-          </div>
+          <img src={aseanlogo} alt="KADA Connect Logo" className="w-10" />
           <div className="flex flex-col">
-            <span className="text-base font-semibold text-gray-900">KADA Connect</span>
+            <span className="text-base font-medium text-gray-900">KADA Connect</span>
             <span className="text-[10px] text-gray-500 hidden sm:block -mt-0.5">
               Korea-ASEAN Digital Academy
             </span>
           </div>
         </Link>
 
-        {/* Desktop Nav */}
+        {/* Desktop Navigation */}
         <nav className="hidden md:flex items-center gap-1">
           <Link
             to="/"
@@ -94,6 +94,7 @@ const Navbar = () => {
             Trainees
           </Link>
 
+          {/* 🔒 LOGIN FEATURE (future improvement)
           <div className="ml-2 pl-2 border-l border-gray-200">
             {isLoggedIn ? (
               <div className="flex items-center gap-2">
@@ -119,6 +120,7 @@ const Navbar = () => {
               </Link>
             )}
           </div>
+          */}
         </nav>
 
         {/* Mobile Menu Button */}
@@ -135,16 +137,11 @@ const Navbar = () => {
         </button>
       </div>
 
-      {/* 🔹 Mobile Nav muncul di bawah navbar */}
+      {/* 🔹 Mobile Navigation */}
       {isMenuOpen && (
         <div className="relative" ref={menuRef}>
-          {/* Overlay background */}
-        
-
-          {/* Slide-in Menu */}
           <div className="md:hidden fixed top-16 right-0 w-72 h-screen bg-white shadow-xl z-10 animate-in slide-in-from-right duration-300">
             <div className="flex flex-col h-full p-5 overflow-y-auto">
-              {/* Links */}
               <div className="flex flex-col gap-2 mb-6">
                 <Link
                   to="/"
@@ -186,8 +183,8 @@ const Navbar = () => {
                 </Link>
               </div>
 
+              {/* 🔒 LOGIN FEATURE (future improvement)
               <div className="h-px bg-gray-200 my-4" />
-
               {isLoggedIn ? (
                 <>
                   <Link
@@ -218,6 +215,7 @@ const Navbar = () => {
                   Login
                 </Link>
               )}
+              */}
             </div>
           </div>
         </div>

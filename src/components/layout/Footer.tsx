@@ -1,4 +1,5 @@
 import { Mail, Github, Linkedin } from "lucide-react";
+import eliceLogo from "@/assets/logo/eliceCI.svg";
 
 const Footer = () => {
   return (
@@ -92,7 +93,7 @@ const Footer = () => {
               <div className="flex items-center gap-1 text-gray-500">
                 <span>Powered by</span>
                 <img
-                  src="/eliceCI.svg"
+                  src={eliceLogo}
                   alt="Elice logo"
                   className="h-4 w-auto shrink-0"
                 />

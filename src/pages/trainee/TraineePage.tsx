@@ -3,7 +3,14 @@ import MainLayout from "@/layouts/MainLayout";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { FileText, Filter, ExternalLink, UserCircle } from "lucide-react";
+import {
+  FileText,
+  Filter,
+  ExternalLink,
+  UserCircle,
+  ChevronLeft,
+  ChevronRight,
+} from "lucide-react";
 import { lookupServices } from "@/services/lookupServices";
 import { studentServices } from "@/services/studentServices";
 import { toast } from "sonner";
@@ -21,35 +28,9 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { LoadingSpinner } from "@/components/common/LoadingSpinner";
-
-// Helper: Google Drive Formatter
-const formatDriveUrl = (input?: string | null): string | undefined => {
-  if (!input) return undefined;
-  const url = input.trim();
-
-  // Case 1: pure file ID
-  if (/^[\w-]{25,}$/.test(url)) {
-    return `https://drive.google.com/uc?export=view&id=${url}`;
-  }
-
-  // Case 2: pattern ?id= or open?id=
-  const idMatch = url.match(/(?:id=|open\?id=)([-\w]{25,})/)?.[1];
-  if (idMatch) {
-    return `https://drive.google.com/uc?export=view&id=${idMatch}`;
-  }
-
-  // Case 3: pattern /d/FILE_ID
-  const dMatch = url.match(/\/d\/([-\\w]{25,})/)?.[1];
-  if (dMatch) {
-    return `https://drive.google.com/uc?export=view&id=${dMatch}`;
-  }
-
-  // Case 4: already correct format
-  if (url.includes("uc?export=view")) return url;
-
-  // Default: return valid URL only
-  return url.startsWith("http") ? url : undefined;
-};
+import { getImageProps, getImageUrl } from "@/utils/imageHelper";
+import { useDebounce } from "@/hooks/useDebounce";
+import { getStatusBadgeClass } from "@/utils/statusBadgeHelper";
 
 interface Trainee {
   id: number;
@@ -89,6 +70,7 @@ const TraineePage = () => {
   const [statuses] = useState<string[]>(["Current Trainee", "Alumni"]);
 
   const [searchTerm, setSearchTerm] = useState("");
+  const debouncedSearch = useDebounce(searchTerm, 500);
   const [selectedStatus, setSelectedStatus] = useState("all");
   const [selectedUniversity, setSelectedUniversity] = useState("all");
   const [selectedMajor, setSelectedMajor] = useState("all");
@@ -110,7 +92,38 @@ const TraineePage = () => {
           lookupServices.getMajors(),
         ]);
 
-        setIndustries(indRes.data?.data || []);
+        const rawIndustries = (indRes.data?.data as string[]) || [];
+
+        const cleanIndustries: string[] = Array.from(
+          new Set(
+            rawIndustries
+              .flatMap((item: string) =>
+                item
+                  .split(",")
+                  .map((s: string) => s.trim())
+                  .filter((s: string) => Boolean(s))
+              )
+              .map((s: string) =>
+                s
+                  .replace(/\s+/g, " ")
+                  .replace(/healthcare/i, "Healthcare")
+                  .replace(/manufactury/i, "Manufacturing")
+                  .replace(/manufacture/i, "Manufacturing")
+                  .replace(/fmcg/i, "FMCG")
+                  .replace(/fintech/i, "FinTech")
+                  .replace(/edutech/i, "EduTech")
+                  .replace(/\b(it)\b/i, "IT")
+              )
+              .filter(
+                (s: string) =>
+                  !/any\s*industr(y|ies)/i.test(s) &&
+                  !/required\s+my\s+skill/i.test(s)
+              )
+          )
+        ).sort((a: string, b: string) => a.localeCompare(b));
+
+        setIndustries(cleanIndustries);
+
         setSkills(skillsRes.data?.data || []);
 
         const universitiesData = (univRes.data?.data || []).map((u: any) => {
@@ -134,9 +147,8 @@ const TraineePage = () => {
   // Fetch Trainee Data
   useEffect(() => {
     fetchTrainees(pagination.page);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
-    searchTerm,
+    debouncedSearch,
     selectedStatus,
     selectedUniversity,
     selectedMajor,
@@ -148,6 +160,7 @@ const TraineePage = () => {
   const fetchTrainees = async (page: number) => {
     try {
       setLoading(true);
+
       const filters = {
         page,
         limit: pagination.limit,
@@ -163,8 +176,29 @@ const TraineePage = () => {
           ? await studentServices.searchStudents(searchTerm, filters)
           : await studentServices.getStudents(filters);
 
-      setTrainees(res.data?.data || []);
-      setPagination(res.data?.pagination || pagination);
+      const fetchedData = res.data?.data || [];
+      const fetchedPagination = res.data?.pagination || {};
+
+      const normalizedData = fetchedData.map((t: any) => ({
+        ...t,
+        profilePhoto: getImageUrl(t.profilePhoto),
+      }));
+
+      setTrainees(normalizedData);
+
+      setPagination({
+        ...pagination,
+        page: fetchedPagination.page ?? 1,
+        limit: fetchedPagination.limit ?? 12,
+        total: fetchedPagination.total ?? fetchedData.length,
+        totalPages:
+          fetchedPagination.totalPages ??
+          Math.ceil(
+            (fetchedPagination.total ?? fetchedData.length) /
+              (fetchedPagination.limit ?? 12)
+          ),
+      });
+
       setError(null);
     } catch (err) {
       console.error("Fetch trainees error:", err);
@@ -174,42 +208,139 @@ const TraineePage = () => {
     }
   };
 
+  const TechStackSection = ({ techStack }: { techStack?: string }) => {
+    const [showAll, setShowAll] = useState(false);
+    if (!techStack) return null;
+
+    const allSkills = techStack
+      .split(/[,|]/)
+      .map((s) => s.trim())
+      .filter(Boolean);
+
+    const displayed = showAll ? allSkills : allSkills.slice(0, 5);
+
+    return (
+      <div>
+        <h4 className="font-medium mb-1">Tech Stack</h4>
+        <div className="flex flex-wrap gap-2 mb-2">
+          {displayed.map((tech) => (
+            <Badge key={tech} variant="secondary">
+              {tech}
+            </Badge>
+          ))}
+        </div>
+        {allSkills.length > 5 && (
+          <button
+            onClick={() => setShowAll(!showAll)}
+            className="text-xs font-medium text-primary hover:underline cursor-pointer"
+          >
+            {showAll ? "Hide" : `Show all (${allSkills.length})`}
+          </button>
+        )}
+      </div>
+    );
+  };
   const handlePageChange = (newPage: number) => {
     if (newPage >= 1 && newPage <= pagination.totalPages) {
       setPagination((prev) => ({ ...prev, page: newPage }));
     }
   };
-
   const handleLinkClick = (url?: string | null, label?: string) => {
-    if (!url || !url.startsWith("http")) {
+    // Handle undefined, null, empty, or '-' input
+    if (!url || url.trim() === "" || url.trim() === "-") {
       toast.error(`${label || "This link"} is not available.`);
       return;
     }
-    window.open(url, "_blank", "noopener,noreferrer");
+
+    // Split multiple links (&, comma, or space)
+    const links = url
+      .split(/[\s,&]+/)
+      .map((l) => l.trim())
+      .filter(Boolean);
+
+    if (links.length === 0) {
+      toast.error(`${label || "This link"} is not available.`);
+      return;
+    }
+
+    links.forEach((raw) => {
+      let finalUrl = raw;
+
+      // Remove 'www.' prefix if exists
+      finalUrl = finalUrl.replace(/^www\./i, "");
+
+      // LinkedIn auto-format
+      if (label?.toLowerCase().includes("linkedin")) {
+        if (!/^https?:\/\//i.test(finalUrl)) {
+          if (finalUrl.startsWith("linkedin.com")) {
+            finalUrl = `https://${finalUrl}`;
+          } else if (/^[a-zA-Z0-9._-]+$/.test(finalUrl)) {
+            finalUrl = `https://linkedin.com/in/${finalUrl}`;
+          } else {
+            finalUrl = `https://linkedin.com/${finalUrl.replace(/^\/+/, "")}`;
+          }
+        }
+      }
+      // Add https:// if missing
+      else if (!/^https?:\/\//i.test(finalUrl)) {
+        finalUrl = `https://${finalUrl}`;
+      }
+
+      // Open link safely
+      try {
+        window.open(finalUrl, "_blank", "noopener,noreferrer");
+      } catch {
+        toast.error(`Unable to open ${label || "the link"}.`);
+      }
+    });
+  };
+
+  useEffect(() => {
+    setPagination((prev) => ({ ...prev, page: 1 }));
+  }, [searchTerm]);
+
+  // Get filtered page numbers for pagination
+  const getPageNumbers = () => {
+    const current = pagination.page;
+    const total = pagination.totalPages;
+    const isMobile = typeof window !== "undefined" && window.innerWidth < 640;
+
+    return Array.from({ length: total }, (_, i) => i + 1).filter((pageNum) => {
+      if (isMobile) {
+        return pageNum === 1 || pageNum === total || pageNum === current;
+      }
+      return (
+        pageNum === 1 ||
+        pageNum === total ||
+        (pageNum >= current - 1 && pageNum <= current + 1)
+      );
+    });
   };
 
   return (
     <MainLayout>
-      <div className="w-full max-w-7xl mx-auto px-4 md:px-6 py-8">
-        <div className="mb-8">
-          <h1 className="mb-3 text-3xl font-bold md:text-4xl">KADA Trainees</h1>
-          <p className="text-lg text-muted-foreground">
+      <div className="w-full max-w-7xl mx-auto px-3 sm:px-4 md:px-6 py-6 sm:py-8">
+        <div className="mb-6 sm:mb-8">
+          <h1 className="mb-2 sm:mb-3 text-2xl sm:text-3xl md:text-4xl font-medium">
+            KADA Trainees
+          </h1>
+          <p className="text-sm sm:text-base md:text-lg text-muted-foreground">
             Discover talented professionals from the Korea-ASEAN Digital Academy
             program.
           </p>
         </div>
 
         {/* Filter Section */}
-        <Card className="mb-8 p-6 shadow-sm border border-gray-100">
-          <div className="mb-6 flex items-center justify-between flex-wrap gap-2">
-            <div className="flex items-center gap-2 text-gray-700 font-semibold text-base">
+        <Card className="mb-6 sm:mb-8 p-4 sm:p-6 shadow-sm border border-gray-100">
+          <div className="mb-4 sm:mb-6 flex items-center justify-between flex-wrap gap-2">
+            <div className="flex items-center gap-2 text-gray-700 font-medium text-sm sm:text-base">
               <Filter className="h-4 w-4 text-primary-600" />
               <span>Filter Trainees</span>
             </div>
             <Button
               variant="outline"
               size="sm"
-              className="border-gray-300 text-gray-700 hover:bg-gray-50"
+              className="border-gray-300 text-gray-700 hover:bg-gray-50 text-xs sm:text-sm h-8 sm:h-9"
               onClick={() => {
                 setSearchTerm("");
                 setSelectedStatus("all");
@@ -225,12 +356,12 @@ const TraineePage = () => {
           </div>
 
           {/* Filter Inputs */}
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             <FilterInput
               label="Search"
               value={searchTerm}
               onChange={setSearchTerm}
-              placeholder="Search trainee..."
+              placeholder="Type name or keyword..."
             />
             <FilterSelect
               label="Status"
@@ -269,11 +400,22 @@ const TraineePage = () => {
         <div className="flex-1 transition-all duration-300">
           {!loading && !error && trainees.length > 0 && (
             <>
-              <div className="mb-4 text-sm text-muted-foreground">
-                Showing {trainees.length} of {pagination.total} trainees — Page{" "}
-                {pagination.page} of {pagination.totalPages}
+              <div className="mb-4 text-xs sm:text-sm text-muted-foreground px-1">
+                <span className="hidden sm:inline">
+                  Showing {(pagination.page - 1) * pagination.limit + 1}–
+                  {Math.min(
+                    pagination.page * pagination.limit,
+                    pagination.total
+                  )}{" "}
+                  of {pagination.total} trainees — Page {pagination.page} of{" "}
+                  {pagination.totalPages}
+                </span>
+                <span className="sm:hidden">
+                  Page {pagination.page} of {pagination.totalPages} (
+                  {pagination.total} total)
+                </span>
               </div>
-              <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+              <div className="grid gap-4 sm:gap-5 md:gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
                 {trainees.map((t) => (
                   <TraineeCard
                     key={t.id}
@@ -283,41 +425,42 @@ const TraineePage = () => {
                 ))}
               </div>
 
-              <div className="flex items-center justify-between mt-8 gap-4 flex-wrap">
-                <Button
-                  variant="outline"
-                  disabled={pagination.page <= 1}
-                  onClick={() => handlePageChange(pagination.page - 1)}
-                  className="min-w-[100px]"
-                >
-                  Previous
-                </Button>
-                
-                <div className="flex items-center gap-2">
-                  {Array.from({ length: pagination.totalPages }, (_, i) => i + 1)
-                    .filter((pageNum) => {
-                      const current = pagination.page;
-                      return (
-                        pageNum === 1 ||
-                        pageNum === pagination.totalPages ||
-                        (pageNum >= current - 1 && pageNum <= current + 1)
-                      );
-                    })
-                    .map((pageNum, index, array) => {
+              {/* Pagination */}
+              <div className="w-full mt-6 sm:mt-8 px-2 sm:px-0">
+                <div className="flex items-center justify-center gap-2 sm:gap-3">
+                  {/* Previous */}
+                  <Button
+                    variant="outline"
+                    disabled={pagination.page <= 1}
+                    onClick={() => handlePageChange(pagination.page - 1)}
+                    className="flex items-center justify-center gap-1 sm:gap-2 h-9 sm:h-10 px-2 sm:px-4 cursor-pointer text-xs sm:text-sm"
+                  >
+                    <ChevronLeft className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                    <span className="hidden xs:inline sm:inline">Prev</span>
+                  </Button>
+
+                  {/* Page Numbers */}
+                  <div className="flex items-center justify-center gap-1 sm:gap-2">
+                    {getPageNumbers().map((pageNum, index, array) => {
                       const prevPage = array[index - 1];
                       const showEllipsis = prevPage && pageNum - prevPage > 1;
-                      
+
                       return (
-                        <div key={pageNum} className="flex items-center gap-2">
+                        <div
+                          key={pageNum}
+                          className="flex items-center gap-1 sm:gap-2"
+                        >
                           {showEllipsis && (
-                            <span className="text-gray-400 px-1">•••</span>
+                            <span className="text-gray-400 px-0.5 sm:px-1 text-xs sm:text-sm">
+                              •••
+                            </span>
                           )}
                           <button
                             onClick={() => handlePageChange(pageNum)}
-                            className={`w-10 h-10 rounded-lg text-sm font-medium transition-all duration-200 ${
+                            className={`w-8 h-8 sm:w-9 cursor-pointer sm:h-9 md:w-10 md:h-10 rounded-lg text-xs sm:text-sm font-medium transition-all duration-200 ${
                               pagination.page === pageNum
-                                ? "bg-primary text-white shadow-sm"
-                                : "bg-white border border-gray-200 text-gray-700 hover:border-primary-300 hover:bg-primary-50"
+                                ? "bg-primary text-white shadow-sm cursor-pointer"
+                                : "bg-white border border-gray-200 text-gray-700  cursor-pointer hover:border-primary-300 hover:bg-primary-50 active:scale-95"
                             }`}
                           >
                             {pageNum}
@@ -325,16 +468,19 @@ const TraineePage = () => {
                         </div>
                       );
                     })}
-                </div>
+                  </div>
 
-                <Button
-                  variant="outline"
-                  disabled={pagination.page >= pagination.totalPages}
-                  onClick={() => handlePageChange(pagination.page + 1)}
-                  className="min-w-[100px]"
-                >
-                  Next
-                </Button>
+                  {/* Next */}
+                  <Button
+                    variant="outline"
+                    disabled={pagination.page >= pagination.totalPages}
+                    onClick={() => handlePageChange(pagination.page + 1)}
+                    className="flex items-center justify-center gap-1 sm:gap-2 h-9 sm:h-10 px-2 sm:px-4 cursor-pointer text-xs sm:text-sm"
+                  >
+                    <span className="hidden xs:inline sm:inline">Next</span>
+                    <ChevronRight className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                  </Button>
+                </div>
               </div>
             </>
           )}
@@ -352,112 +498,123 @@ const TraineePage = () => {
         </div>
 
         {/* Dialog */}
+
         <Dialog
           open={!!selectedTrainee}
           onOpenChange={() => setSelectedTrainee(null)}
         >
           <DialogContent className="max-w-2xl w-[90vw] md:w-[700px] max-h-[85vh] overflow-y-auto rounded-2xl">
-            <DialogHeader className="pb-4">
-              {selectedTrainee && (
-                <div className="flex items-center gap-4">
-                  <ProfileImage
-                    imageUrl={selectedTrainee.profilePhoto}
-                    alt={selectedTrainee.fullName}
-                  />
-                  <div className="flex flex-col">
-                    <DialogTitle className="text-2xl font-medium">
-                      {selectedTrainee.fullName}
-                    </DialogTitle>
-                    <div className="flex items-center gap-2 mt-1">
-                      <Badge variant="outline">{selectedTrainee.status}</Badge>
+            {selectedTrainee && (
+              <>
+                {/* Header Section */}
+                <DialogHeader className="pb-4">
+                  <div className="flex flex-col sm:flex-row items-center sm:items-start text-center sm:text-left gap-4">
+                    <ProfileImage
+                      imageUrl={selectedTrainee.profilePhoto}
+                      alt={selectedTrainee.fullName}
+                    />
+                    <div className="flex flex-col">
+                      <DialogTitle className="text-2xl font-medium">
+                        {selectedTrainee.fullName}
+                      </DialogTitle>
+                      <div className="flex items-center justify-center sm:justify-start gap-2 mt-1">
+                        <Badge
+                          variant="outline"
+                          className={`text-xs ${getStatusBadgeClass(
+                            selectedTrainee.status
+                          )}`}
+                        >
+                          {selectedTrainee.status}
+                        </Badge>
+                      </div>
                     </div>
                   </div>
-                </div>
-              )}
-            </DialogHeader>
+                </DialogHeader>
 
-            {selectedTrainee && (
-              <div className="space-y-4 mt-1">
-                <div>
-                  <h4 className="font-medium mb-1">Introduction</h4>
-                  <p className="text-sm text-muted-foreground">
-                    {selectedTrainee.selfIntroduction ||
-                      "No introduction available."}
-                  </p>
-                </div>
+                {/* Body Content */}
+                <div className="space-y-4 mt-1 text-left">
+                  {/* Introduction */}
+                  <div>
+                    <h4 className="font-medium mb-1">Introduction</h4>
+                    <p className="text-sm text-muted-foreground text-justify">
+                      {selectedTrainee.selfIntroduction ||
+                        "No introduction available."}
+                    </p>
+                  </div>
 
-                <div>
-                  <h4 className="font-medium mb-1">University</h4>
-                  <p className="text-sm text-muted-foreground">
-                    {selectedTrainee.university} — {selectedTrainee.major}
-                  </p>
-                </div>
+                  {/* University */}
+                  <div>
+                    <h4 className="font-medium mb-1">University</h4>
+                    <p className="text-sm text-muted-foreground">
+                      {selectedTrainee.university} — {selectedTrainee.major}
+                    </p>
+                  </div>
 
-                <div>
-                  <h4 className="font-medium mb-1">Preferred Industry</h4>
-                  <div className="flex flex-wrap gap-2">
-                    {selectedTrainee.preferredIndustry ? (
-                      selectedTrainee.preferredIndustry
-                        .split(/\s*,\s*/)
-                        .filter(Boolean)
-                        .map((ind) => (
-                          <Badge key={ind} variant="outline">
-                            {ind}
-                          </Badge>
-                        ))
-                    ) : (
-                      <Badge variant="outline">N/A</Badge>
-                    )}
+                  {/* Preferred Industry */}
+                  <div>
+                    <h4 className="font-medium mb-1">Preferred Industry</h4>
+                    <div className="flex flex-wrap gap-2">
+                      {selectedTrainee.preferredIndustry ? (
+                        selectedTrainee.preferredIndustry
+                          .split(/\s*,\s*/)
+                          .filter(Boolean)
+                          .map((ind) => (
+                            <Badge key={ind} variant="outline">
+                              {ind}
+                            </Badge>
+                          ))
+                      ) : (
+                        <Badge variant="outline">N/A</Badge>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Tech Stack */}
+                  <TechStackSection techStack={selectedTrainee.techStack} />
+
+                  {/* Buttons */}
+                  <div className="flex flex-wrap gap-2 mt-4">
+                    <Button
+                      variant="default"
+                      onClick={() =>
+                        handleLinkClick(
+                          selectedTrainee.cvUpload ?? undefined,
+                          "CV"
+                        )
+                      }
+                      className="cursor-pointer"
+                    >
+                      <FileText className="mr-2 h-4 w-4" /> View CV
+                    </Button>
+
+                    <Button
+                      variant="outline"
+                      onClick={() =>
+                        handleLinkClick(
+                          selectedTrainee.portfolioLink ?? undefined,
+                          "Portfolio"
+                        )
+                      }
+                      className="cursor-pointer"
+                    >
+                      <ExternalLink className="mr-2 h-4 w-4" /> Portfolio
+                    </Button>
+
+                    <Button
+                      variant="outline"
+                      onClick={() =>
+                        handleLinkClick(
+                          selectedTrainee.linkedin ?? undefined,
+                          "LinkedIn"
+                        )
+                      }
+                      className="cursor-pointer"
+                    >
+                      LinkedIn
+                    </Button>
                   </div>
                 </div>
-
-                <div>
-                  <h4 className="font-medium mb-1">Tech Stack</h4>
-                  <div className="flex flex-wrap gap-2">
-                    {selectedTrainee.techStack?.split(",").map((tech) => (
-                      <Badge key={tech.trim()} variant="secondary">
-                        {tech.trim()}
-                      </Badge>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="flex flex-wrap gap-2 mt-4">
-                  <Button
-                    variant="default"
-                    onClick={() =>
-                      handleLinkClick(
-                        selectedTrainee.cvUpload ?? undefined,
-                        "CV"
-                      )
-                    }
-                  >
-                    <FileText className="mr-2 h-4 w-4" /> View CV
-                  </Button>
-                  <Button
-                    variant="outline"
-                    onClick={() =>
-                      handleLinkClick(
-                        selectedTrainee.portfolioLink ?? undefined,
-                        "Portfolio"
-                      )
-                    }
-                  >
-                    <ExternalLink className="mr-2 h-4 w-4" /> Portfolio
-                  </Button>
-                  <Button
-                    variant="outline"
-                    onClick={() =>
-                      handleLinkClick(
-                        selectedTrainee.linkedin ?? undefined,
-                        "LinkedIn"
-                      )
-                    }
-                  >
-                    LinkedIn
-                  </Button>
-                </div>
-              </div>
+              </>
             )}
           </DialogContent>
         </Dialog>
@@ -467,7 +624,6 @@ const TraineePage = () => {
 };
 
 // Reusable Components
-
 const ProfileImage = ({
   imageUrl,
   alt,
@@ -475,8 +631,9 @@ const ProfileImage = ({
   imageUrl?: string;
   alt: string;
 }) => {
+  const imageProps = getImageProps(imageUrl, "profile");
   const [isError, setIsError] = useState(false);
-  const finalUrl = formatDriveUrl(imageUrl);
+  const finalUrl = getImageProps(imageUrl);
 
   if (!finalUrl || isError) {
     return (
@@ -488,17 +645,18 @@ const ProfileImage = ({
 
   return (
     <img
-      src={finalUrl}
+      {...imageProps}
       alt={alt}
-      className="w-20 h-20 rounded-full object-cover"
+      className="w-36 h-36 rounded-xl object-cover shrink-0 group-hover:scale-105 transition-transform duration-300"
       onError={() => setIsError(true)}
+      loading="lazy"
     />
   );
 };
 
 const FilterInput = ({ label, value, onChange, placeholder }: any) => (
   <div>
-    <label className="mb-2 block text-sm font-medium text-gray-700">
+    <label className="mb-2 block text-xs sm:text-sm font-medium text-gray-700">
       {label}
     </label>
     <input
@@ -513,7 +671,7 @@ const FilterInput = ({ label, value, onChange, placeholder }: any) => (
 
 const FilterSelect = ({ label, value, onChange, items }: any) => (
   <div>
-    <label className="mb-2 block text-sm font-medium text-gray-700">
+    <label className="mb-2 block text-xs sm:text-sm font-medium text-gray-700">
       {label}
     </label>
     <Select value={value} onValueChange={onChange}>
@@ -540,49 +698,38 @@ const TraineeCard = ({
   onClick: () => void;
 }) => {
   const [isError, setIsError] = useState(false);
-  const photoUrl = formatDriveUrl(trainee.profilePhoto);
+  const photoUrl = trainee.profilePhoto;
 
-  // Format name to title case
-  const formatName = (name: string) => {
-    return name
+  const formatName = (name: string) =>
+    name
       .toLowerCase()
       .split(" ")
       .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
       .join(" ");
-  };
-
-  // Get status badge style based on status
-  const getStatusBadgeClass = (status: string) => {
-    const lowerStatus = status.toLowerCase();
-
-    if (lowerStatus.includes("alumni")) {
-      return "border-purple-200 text-purple-700 bg-purple-50";
-    }
-
-    // Current trainee (default)
-    return "border-primary-200 text-primary-700 bg-primary-50";
-  };
 
   return (
-    <Card className="group overflow-hidden border-0 hover:shadow-lg transition-all duration-300 rounded-xl bg-white shadow-sm">
-      <div className="p-5">
-        {/* Header Section - Photo & Name */}
-        <div className="flex items-start gap-4 mb-4">
+    <Card className="group flex flex-col justify-between border-0 hover:shadow-lg transition-all duration-300 rounded-xl bg-white shadow-sm h-full">
+      <div className="p-4 sm:p-5 flex-1 flex flex-col">
+        {/* Header Section */}
+        <div className="flex flex-col sm:flex-row items-center sm:items-start sm:gap-4 gap-3 mb-4">
+          {/* Foto */}
           {photoUrl && !isError ? (
             <img
               src={photoUrl}
               alt={trainee.fullName}
-              className="w-16 h-16 rounded-xl object-cover shrink-0 group-hover:scale-105 transition-transform duration-300"
+              className="w-40 h-40 sm:w-16 sm:h-16 rounded-2xl object-cover group-hover:scale-105 transition-transform duration-300"
               onError={() => setIsError(true)}
+              loading="lazy"
             />
           ) : (
-            <div className="w-16 h-16 flex items-center justify-center bg-gray-50 rounded-xl shrink-0">
-              <UserCircle className="w-10 h-10 text-gray-300" />
+            <div className="w-24 h-24 sm:w-16 sm:h-16 flex items-center justify-center bg-gray-50 rounded-2xl">
+              <UserCircle className="w-12 h-12 sm:w-10 sm:h-10 text-gray-300" />
             </div>
           )}
 
-          <div className="flex-1 min-w-0">
-            <h3 className="text-lg font-medium text-gray-900 mb-1 truncate group-hover:text-primary-600 transition-colors">
+          {/* Nama dan Status */}
+          <div className="flex flex-col items-center sm:items-start text-center sm:text-left mt-2 sm:mt-0">
+            <h3 className="text-base sm:text-lg font-medium text-gray-900 mb-1 line-clamp-2 group-hover:text-primary-600 transition-colors">
               {formatName(trainee.fullName)}
             </h3>
             <Badge
@@ -595,18 +742,18 @@ const TraineeCard = ({
         </div>
 
         {/* Education Info */}
-        <div className="mb-4 pb-4 border-b border-gray-100">
-          <p className="text-sm text-gray-600 line-clamp-2">
+        <div className="mb-4 pb-3 border-b border-gray-100 text-left">
+          <p className="text-xs sm:text-sm text-gray-600 line-clamp-2">
             {trainee.university}
           </p>
           <p className="text-xs text-gray-500 mt-1">{trainee.major}</p>
         </div>
 
-        {/* Industries */}
+        {/* Industry */}
         {trainee.preferredIndustry && (
-          <div className="mb-3">
-            <p className="text-xs font-medium text-gray-500 mb-2">Industry</p>
-            <div className="flex flex-wrap gap-1.5">
+          <div className="mb-3 text-left">
+            <p className="text-xs font-medium text-gray-500 mb-1.5">Industry</p>
+            <div className="flex flex-wrap gap-1 sm:gap-1.5">
               {trainee.preferredIndustry
                 .split(/\s*,\s*/)
                 .filter(Boolean)
@@ -624,31 +771,32 @@ const TraineeCard = ({
           </div>
         )}
 
-        {/* Tech Stack */}
-        {trainee.techStack && (
-          <div className="mb-4">
-            <p className="text-xs font-medium text-gray-500 mb-2">Skills</p>
-            <div className="flex flex-wrap gap-1.5">
-              {trainee.techStack
-                .split(",")
-                .slice(0, 4)
-                .map((tech) => (
-                  <Badge
-                    key={tech.trim()}
-                    variant="secondary"
-                    className="text-xs"
-                  >
-                    {tech.trim()}
-                  </Badge>
-                ))}
-            </div>
-          </div>
-        )}
+        {/* Skills */}
+        {trainee.techStack
+          ?.split(/[,|]/)
+          .map((tech) => tech.trim())
+          .filter(Boolean)
+          .slice(0, 4)
+          .map((tech, index) => {
+            const shortTech = tech.split(/\s+/).slice(0, 4).join(" ");
+            return (
+              <Badge
+                key={`${tech}-${index}`}
+                variant="secondary"
+                className="text-xs px-2 my-1 py-1 leading-snug whitespace-normal break-word rounded-2xl"
+                title={tech}
+              >
+                {shortTech}
+              </Badge>
+            );
+          })}
+      </div>
 
-        {/* CTA Button */}
+      {/* Footer Button */}
+      <div className="p-4 sm:p-5 pt-0 text-left">
         <Button
           variant="default"
-          className="w-full bg-primary hover:bg-primary/90 text-primary-foreground h-9 text-sm font-medium"
+          className="w-full bg-primary hover:bg-primary/90 text-primary-foreground h-9 text-xs sm:text-sm font-medium cursor-pointer"
           onClick={onClick}
         >
           View Full Profile
@@ -657,4 +805,5 @@ const TraineeCard = ({
     </Card>
   );
 };
+
 export default TraineePage;
