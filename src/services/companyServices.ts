@@ -36,7 +36,7 @@ export const companyServices = {
         ...(filters?.techRole && { techRole: filters.techRole }),
       },
     }),
-
+    
   // Validate company logo upload
   validateLogo: (data: FormData) =>
     axiosInstance.post(API_PATHS.COMPANIES.VALIDATE_LOGO, data, {

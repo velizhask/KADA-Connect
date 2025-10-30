@@ -11,7 +11,6 @@ import {
   TrendingUp,
   Globe,
   Briefcase,
-
 } from "lucide-react";
 import MainLayout from "@/layouts/MainLayout";
 import { useState, useEffect } from "react";
@@ -22,12 +21,22 @@ import {
   MarqueeItem,
 } from "@/components/ui/shadcn-io/marquee";
 
+import aseanlogo from "@/assets/logo/aseanlogo.png";
+import ksalogo from "@/assets/logo/ksalogo.png"
+import akcfLogo from "@/assets/logo/akcflogo.jpg";
+import tuvnordLogo from "@/assets/logo/tuvnord.svg";
+import kpnLogo from "@/assets/logo/kpn.png";
+import eliceLogo from "@/assets/logo/eliceCI.svg";
+import kimiaFarmLogo from "@/assets/logo/kimiafarm.png";
+import nipaLogo from "@/assets/logo/nipa.png";
+import komdigiLogo from "@/assets/logo/komdigi.png";
+
 const testimonials = [
   {
     id: 1,
     name: "Sarah Kim",
     role: "HR Manager at TechCorp",
-    company: "TechCorp Indonesia",
+    company: "TechCorp",
     rating: 5,
     text: "KADA Connect made it incredibly easy to find talented developers. The filtering system is intuitive and saved us hours of screening.",
     avatar: "SK",
@@ -36,7 +45,7 @@ const testimonials = [
     id: 2,
     name: "Ahmad Rahman",
     role: "Software Engineer",
-    company: "KADA Alumni 2024",
+    company: "KADA Alumni Batch 1",
     rating: 5,
     text: "Thanks to KADA Connect, I landed my dream job at a fintech startup. The platform showcased my skills perfectly to potential employers.",
     avatar: "AR",
@@ -54,7 +63,7 @@ const testimonials = [
     id: 4,
     name: "Rizki Pratama",
     role: "Full Stack Developer",
-    company: "KADA Alumni 2024",
+    company: "KADA Alumni Batch 1",
     rating: 5,
     text: "The Industry Visit event through KADA Connect was a game-changer. Met amazing companies and got multiple job offers!",
     avatar: "RP",
@@ -86,32 +95,31 @@ const HomePage = () => {
             </div>
 
             <div className="space-y-4">
-  <h1 className="text-2xl font-medium tracking-tight sm:text-3xl md:text-4xl lg:text-5xl">
-    Learn, connect, and grow at
-    <span className="mx-2 text-primary bg-clip-text bg-linear-r from-primary to-primary/70">
-    KADA Connect
-    </span>
-  </h1>
+              <h1 className="text-2xl font-medium tracking-tight sm:text-3xl md:text-4xl lg:text-5xl">
+                Learn, connect, and grow at
+                <span className="mx-2 text-primary bg-clip-text bg-linear-r from-primary to-primary/70">
+                  KADA Connect
+                </span>
+              </h1>
 
-  <p className=" max-w-1xl text-sm sm:text-xl text-gray-600">
-    Empowering future talent and companies through the <br />
-    Korea-ASEAN Digital Academy Industry Visit.
-  </p>
-</div>
+              <p className=" max-w-1xl text-sm sm:text-xl text-gray-600">
+                Empowering future talent and companies through the <br />
+                Korea-ASEAN Digital Academy Industry Visit.
+              </p>
+            </div>
 
             <div className="flex flex-col gap-4 sm:flex-row sm:justify-center pt-2">
               <Button
                 size="lg"
-                variant="default"
+                variant="outline"
                 asChild
-                className="bg-primary text-white hover:bg-primary/90 shadow-lg hover:shadow-xl transition-all duration-300 h-12 px-8"
+                className="border-2 border-primary text-primary hover:bg-primary hover:text-white shadow-md hover:shadow-lg transition-all duration-300 h-12 px-8"
               >
                 <Link to="/companies">
-                  <Building2 className="mr-2 h-5 w-5 text-white" />
+                  <Building2 className="mr-2 h-5 w-5 transition-colors" />
                   Explore Companies
                 </Link>
               </Button>
-
               <Button
                 size="lg"
                 variant="outline"
@@ -184,20 +192,21 @@ const HomePage = () => {
       {/* Companies Marquee - Enhanced */}
       <section className="py-12 bg-gray-50">
         <div className="container px-4 md:px-6 mx-auto max-w-6xl">
-        
-
           <Marquee className="relative">
             <MarqueeFade side="left" />
             <MarqueeFade side="right" />
 
             <MarqueeContent>
               {[
-                { src: "/logos/tuvnord.svg", alt: "TUVNORD" },
-                { src: "/logos/kpn.png", alt: "KPN CORP" },
-                { src: "/eliceCI.svg", alt: "Elice.io" },
-                { src: "/logos/kalbe.png", alt: "Kalbe Farma" },
-                { src: "/logos/nipa.png", alt: "NIPA" },
-                { src: "/logos/komdigi.png", alt: "Komdigi" },
+                { src: aseanlogo, alt: "ASEAN" },
+                { src: nipaLogo, alt: "NIPA" },
+                { src: akcfLogo, alt: "AKCF" },
+                { src: eliceLogo, alt: "Elice.io" },
+                { src: komdigiLogo, alt: "Komdigi" },
+                { src: ksalogo, alt: "KSA" },
+                { src: tuvnordLogo, alt: "TUVNORD" },
+                { src: kpnLogo, alt: "KPN CORP" },
+                { src: kimiaFarmLogo, alt: "Kimia Farma" },
               ].map((logo, i) => (
                 <MarqueeItem key={i} className="px-10">
                   <img
@@ -249,8 +258,8 @@ const HomePage = () => {
             <Card className="p-8 border border-gray-200 shadow-sm hover:shadow-xl hover:border-primary/50 transition-all duration-300 group relative overflow-hidden">
               <div className="absolute top-0 right-0 w-32 h-32 bg-accent/5 rounded-full -mr-16 -mt-16 group-hover:bg-accent/10 transition-colors" />
               <div className="relative">
-               <div className="mb-6 flex h-16 w-16 items-center justify-center rounded-2xl bg-primary/10 group-hover:bg-primary group-hover:scale-110 transition-all">
-                  <GraduationCap className="h-8 w-8 text-primary group-hover:text-white transition-colors"/>
+                <div className="mb-6 flex h-16 w-16 items-center justify-center rounded-2xl bg-primary/10 group-hover:bg-primary group-hover:scale-110 transition-all">
+                  <GraduationCap className="h-8 w-8 text-primary group-hover:text-white transition-colors" />
                 </div>
                 <h3 className="mb-3 text-xl font-medium">For Trainees</h3>
                 <p className="text-gray-600 mb-6 leading-relaxed">
@@ -273,7 +282,9 @@ const HomePage = () => {
                 <div className="mb-6 flex h-16 w-16 items-center justify-center rounded-2xl bg-primary/10 group-hover:bg-primary group-hover:scale-110 transition-all">
                   <Calendar className="h-8 w-8 text-primary group-hover:text-white transition-colors" />
                 </div>
-                <h3 className="mb-3 text-xl font-medium">Industry Visit 2025</h3>
+                <h3 className="mb-3 text-xl font-medium">
+                  Industry Visit 2025
+                </h3>
                 <p className="text-gray-600 mb-6 leading-relaxed">
                   Join us November 12, 2025 for networking, company
                   presentations, and one-on-one meetings with industry leaders.
@@ -367,8 +378,8 @@ const HomePage = () => {
       <section className="bg-white py-24 border-t">
         <div className="container px-4 md:px-6 mx-auto max-w-5xl">
           <div className="text-center mb-12">
-            <div className="inline-flex h-20 w-20 items-center justify-center rounded-3xl bg-linear-to-br from-primary to-primary/70 mb-6">
-              <GraduationCap className="h-10 w-10 text-white" />
+            <div className="inline-flex  items-center justify-center mb-6">
+              <img src={aseanlogo} alt="KADA Connect Logo" className="w-30" />
             </div>
             <h2 className="text-3xl md:text-4xl font-medium mb-6">
               About KADA Connect
@@ -386,7 +397,9 @@ const HomePage = () => {
               <div className="h-12 w-12 rounded-xl bg-primary/10 flex items-center justify-center mb-5 group-hover:bg-primary transition-colors">
                 <Briefcase className="h-6 w-6 text-primary group-hover:text-white transition-colors" />
               </div>
-              <h3 className="font-medium text-xl mb-3">Comprehensive Profiles</h3>
+              <h3 className="font-medium text-xl mb-3">
+                Comprehensive Profiles
+              </h3>
               <p className="text-gray-600 leading-relaxed">
                 Access detailed information about companies and trainees,
                 including skills, portfolios, and career preferences
