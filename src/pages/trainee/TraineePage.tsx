@@ -58,7 +58,7 @@ const TraineePage = () => {
   const [trainees, setTrainees] = useState<Trainee[]>([]);
   const [pagination, setPagination] = useState<PaginationInfo>({
     page: 1,
-    limit: 12,
+    limit: 9,
     total: 0,
     totalPages: 1,
   });
@@ -852,7 +852,10 @@ const TraineeCard = ({
         )}
 
         {/* Skills */}
-        {trainee.techStack
+        <div className="mb-3 text-left">
+            <p className="text-xs font-medium text-gray-500 mb-1.5">Tech Skills</p>
+            <div className="flex flex-wrap gap-1 sm:gap-1.5">
+ {trainee.techStack
           ?.split(/[,|]/)
           .map((tech) => tech.trim())
           .filter(Boolean)
@@ -870,6 +873,8 @@ const TraineeCard = ({
               </Badge>
             );
           })}
+            </div>
+       </div>
       </div>
 
       {/* Footer Button */}
